@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0e1a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LoanBook">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>LoanBook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+/* ═══════════════════════════════════════════
+   TOKENS
+═══════════════════════════════════════════ */
+:root {
+  --bg:        #080c17;
+  --bg2:       #0d1120;
+  --panel:     #111827;
+  --panel2:    #1a2235;
+  --border:    #1f2d45;
+  --border2:   #2a3d5a;
+  --accent:    #3b8fff;
+  --accent-d:  #1a6fd4;
+  --green:     #00d97e;
+  --red:       #ff4d6d;
+  --yellow:    #ffc233;
+  --purple:    #a78bfa;
+  --text:      #e8edf5;
+  --text2:     #8899b4;
+  --text3:     #4a5a75;
+  --mono:      'Space Mono', monospace;
+  --sans:      'Syne', sans-serif;
+  --r:         12px;
+  --r-sm:      8px;
+  --safe-b:    env(safe-area-inset-bottom, 0px);
+}
+
+/* ═══════════════════════════════════════════
+   RESET + BASE
+═══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+input, textarea, select, button { font-family: inherit; }
+button { cursor: pointer; border: none; background: none; color: inherit; }
+
+/* ═══════════════════════════════════════════
+   LAYOUT SHELL
+═══════════════════════════════════════════ */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  height: 100vh;
+}
+
+/* ═══════════════════════════════════════════
+   TOP BAR
+═══════════════════════════════════════════ */
+#topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 10;
+}
+
+.topbar-logo {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+.topbar-logo span { color: var(--text2); font-weight: 400; }
+
+.topbar-actions { display: flex; gap: 8px; align-items: center; }
+
+.sync-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--panel2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 0.75rem;
+  font-family: var(--mono);
+  color: var(--text2);
+  transition: all 0.2s;
+}
+.sync-btn:active { background: var(--border2); }
+.sync-btn .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: background 0.3s;
+}
+.sync-btn.online .dot { background: var(--green); }
+.sync-btn.syncing .dot { background: var(--yellow); animation: pulse 0.8s infinite; }
+
+@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+
+/* ═══════════════════════════════════════════
+   SCREEN SYSTEM
+═══════════════════════════════════════════ */
+#screens {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 16px calc(80px + var(--safe-b));
+  display: none;
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.screen.active {
+  display: block;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ═══════════════════════════════════════════
+   BOTTOM NAV
+═══════════════════════════════════════════ */
+#bottomnav {
+  flex-shrink: 0;
+  display: flex;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  padding-bottom: var(--safe-b);
+  position: relative;
+  z-index: 10;
+}
+
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px 8px;
+  color: var(--text3);
+  font-size: 0.6rem;
+  font-family: var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+.nav-btn svg { width: 22px; height: 22px; stroke-width: 1.8; }
+.nav-btn.active { color: var(--accent); }
+.nav-btn.active svg { filter: drop-shadow(0 0 6px rgba(59,143,255,0.5)); }
+
+/* ═══════════════════════════════════════════
+   TYPOGRAPHY HELPERS
+═══════════════════════════════════════════ */
+.section-title {
+  font-size: 0.65rem;
+  font-family: var(--mono);
+  letter-spacing: 0.15em;
+  color: var(--text3);
+  text-transform: uppercase;
+  margin: 20px 0 10px;
+}
+.section-title:first-child { margin-top: 4px; }
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+.page-sub { font-size: 0.85rem; color: var(--text2); margin-bottom: 20px; }
+
+/* ═══════════════════════════════════════════
+   CARDS
+═══════════════════════════════════════════ */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px;
+  margin-bottom: 10px;
+  position: relative;
+  overflow: hidden;
+}
+.card:active { background: var(--panel2); }
+
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.borrower-card {
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.borrower-card:active { transform: scale(0.98); border-color: var(--border2); }
+
+.borrower-name {
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 6px;
+}
+.borrower-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.meta-tag {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--panel2);
+  color: var(--text2);
+  letter-spacing: 0.04em;
+}
+
+.balance-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+.bal-item { text-align: center; }
+.bal-label { font-size: 0.6rem; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
+.bal-value { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; margin-top: 2px; }
+.bal-value.principal { color: var(--text); }
+.bal-value.interest  { color: var(--yellow); }
+.bal-value.penalty   { color: var(--red); }
+.bal-value.total     { color: var(--accent); }
+
+/* Due-date indicator strip on left */
+.due-indicator {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 12px 0 0 12px;
+}
+.due-indicator.overdue  { background: var(--red); }
+.due-indicator.due-soon { background: var(--yellow); }
+.due-indicator.ok       { background: var(--green); }
+.due-indicator.closed   { background: var(--text3); }
+
+/* ═══════════════════════════════════════════
+   GRADE BADGES
+═══════════════════════════════════════════ */
+.grade {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.06em;
+}
+.grade-Excellent { background: rgba(0,217,126,0.15); color: var(--green); }
+.grade-Good      { background: rgba(59,143,255,0.15); color: var(--accent); }
+.grade-Fair      { background: rgba(255,194,51,0.15); color: var(--yellow); }
+.grade-Risky     { background: rgba(255,140,50,0.15); color: #ff8c32; }
+.grade-Dangerous { background: rgba(255,77,109,0.15); color: var(--red); }
+
+/* ═══════════════════════════════════════════
+   STAT SUMMARY CARDS (Dashboard)
+═══════════════════════════════════════════ */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px;
+}
+.stat-label { font-size: 0.62rem; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+.stat-value { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.stat-sub   { font-size: 0.7rem; font-family: var(--mono); color: var(--text2); margin-top: 4px; }
+
+/* ═══════════════════════════════════════════
+   SEARCH BAR
+═══════════════════════════════════════════ */
+.search-wrap {
+  position: relative;
+  margin-bottom: 14px;
+}
+.search-wrap svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  color: var(--text3);
+}
+.search-input {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  padding: 10px 12px 10px 38px;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-input:focus { border-color: var(--border2); }
+.search-input::placeholder { color: var(--text3); }
+
+/* ═══════════════════════════════════════════
+   FORMS
+═══════════════════════════════════════════ */
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block;
+  font-size: 0.68rem;
+  font-family: var(--mono);
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+.form-input, .form-select {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  padding: 11px 14px;
+  font-size: 0.95rem;
+  font-family: var(--sans);
+  outline: none;
+  appearance: none;
+  transition: border-color 0.2s;
+}
+.form-input:focus, .form-select:focus { border-color: var(--accent); }
+.form-input::placeholder { color: var(--text3); }
+
+.alloc-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+/* ═══════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════ */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--r-sm);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: all 0.18s;
+}
+.btn-primary   { background: var(--accent); color: #fff; }
+.btn-primary:active { background: var(--accent-d); transform: scale(0.98); }
+.btn-success   { background: var(--green); color: #020a14; }
+.btn-success:active { filter: brightness(0.88); transform: scale(0.98); }
+.btn-ghost     { background: var(--panel2); border: 1px solid var(--border2); color: var(--text2); }
+.btn-ghost:active { background: var(--border); }
+.btn-danger    { background: rgba(255,77,109,0.15); border: 1px solid var(--red); color: var(--red); }
+.btn + .btn    { margin-top: 10px; }
+
+/* ═══════════════════════════════════════════
+   ALLOCATION PREVIEW
+═══════════════════════════════════════════ */
+.alloc-preview {
+  background: var(--panel2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-sm);
+  padding: 14px;
+  margin: 14px 0;
+}
+.alloc-preview-title {
+  font-size: 0.65rem;
+  font-family: var(--mono);
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 10px;
+}
+.alloc-bar-wrap { margin-bottom: 8px; }
+.alloc-bar-label { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.alloc-bar-label span { font-size: 0.72rem; font-family: var(--mono); color: var(--text2); }
+.alloc-bar-label strong { font-size: 0.72rem; font-family: var(--mono); color: var(--text); }
+.alloc-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.alloc-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s ease; }
+.alloc-bar-fill.interest { background: var(--yellow); }
+.alloc-bar-fill.penalty  { background: var(--red); }
+.alloc-bar-fill.principal{ background: var(--green); }
+
+.alloc-remaining { display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 6px; }
+.alloc-remaining span { font-size: 0.72rem; color: var(--text3); font-family: var(--mono); }
+.alloc-remaining strong { font-family: var(--mono); font-size: 0.85rem; }
+.alloc-remaining strong.ok  { color: var(--green); }
+.alloc-remaining strong.bad { color: var(--red); }
+
+/* ═══════════════════════════════════════════
+   TRANSACTION HISTORY LIST
+═══════════════════════════════════════════ */
+.txn-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.txn-item:last-child { border-bottom: none; }
+.txn-icon {
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.9rem;
+}
+.txn-icon.loan    { background: rgba(59,143,255,0.15); }
+.txn-icon.payment { background: rgba(0,217,126,0.15); }
+.txn-info { flex: 1; }
+.txn-type  { font-size: 0.8rem; font-weight: 700; margin-bottom: 2px; }
+.txn-date  { font-size: 0.68rem; font-family: var(--mono); color: var(--text3); margin-bottom: 4px; }
+.txn-breakdown { font-size: 0.68rem; font-family: var(--mono); color: var(--text2); }
+.txn-amount { font-family: var(--mono); font-weight: 700; font-size: 0.9rem; }
+.txn-amount.loan    { color: var(--red); }
+.txn-amount.payment { color: var(--green); }
+
+/* ═══════════════════════════════════════════
+   DUES LIST
+═══════════════════════════════════════════ */
+.due-item {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.due-month { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; }
+.due-amounts { font-size: 0.68rem; font-family: var(--mono); color: var(--text2); margin-top: 2px; }
+.due-status {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+.due-status.Unpaid  { background: rgba(255,77,109,0.15);  color: var(--red); }
+.due-status.Partial { background: rgba(255,194,51,0.15);  color: var(--yellow); }
+.due-status.Paid    { background: rgba(0,217,126,0.15);   color: var(--green); }
+
+/* ═══════════════════════════════════════════
+   PROFILE HEADER
+═══════════════════════════════════════════ */
+.profile-header {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 20px;
+  margin-bottom: 14px;
+}
+.profile-name { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px; }
+.profile-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.profile-balance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.pbal-item {
+  background: var(--panel2);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+}
+.pbal-label { font-size: 0.62rem; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+.pbal-value { font-family: var(--mono); font-weight: 700; font-size: 1rem; margin-top: 4px; }
+
+/* ═══════════════════════════════════════════
+   BACK BUTTON
+═══════════════════════════════════════════ */
+.back-btn {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-family: var(--mono);
+  margin-bottom: 16px;
+  padding: 4px 0;
+}
+.back-btn svg { width: 16px; }
+
+/* ═══════════════════════════════════════════
+   OFFLINE BANNER
+═══════════════════════════════════════════ */
+#offline-banner {
+  background: rgba(255,194,51,0.1);
+  border-bottom: 1px solid rgba(255,194,51,0.3);
+  color: var(--yellow);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  text-align: center;
+  padding: 6px;
+  display: none;
+  letter-spacing: 0.05em;
+}
+#offline-banner.visible { display: block; }
+
+/* ═══════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════ */
+#toast {
+  position: fixed;
+  bottom: calc(72px + var(--safe-b) + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--panel2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 10px 20px;
+  font-size: 0.82rem;
+  font-family: var(--mono);
+  color: var(--text);
+  opacity: 0;
+  transition: all 0.25s;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  max-width: calc(100vw - 40px);
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.success { border-color: var(--green); color: var(--green); }
+#toast.error   { border-color: var(--red);   color: var(--red); }
+
+/* ═══════════════════════════════════════════
+   MODAL (for queue preview, confirmations)
+═══════════════════════════════════════════ */
+#modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 200;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+#modal-overlay.open { display: flex; }
+#modal-box {
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: var(--r) var(--r) 0 0;
+  padding: 24px 20px calc(24px + var(--safe-b));
+  width: 100%;
+  max-width: 480px;
+  max-height: 75vh;
+  overflow-y: auto;
+  animation: slideUp 0.25s ease;
+}
+@keyframes slideUp { from { transform: translateY(30px); opacity: 0; } }
+.modal-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
+.modal-handle { width: 36px; height: 3px; background: var(--border2); border-radius: 2px; margin: 0 auto 20px; }
+
+/* ═══════════════════════════════════════════
+   EMPTY STATE
+═══════════════════════════════════════════ */
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.8;
+}
+.empty-state .emoji { font-size: 2.5rem; display: block; margin-bottom: 12px; }
+
+/* ═══════════════════════════════════════════
+   QUEUE BADGE
+═══════════════════════════════════════════ */
+.queue-badge {
+  position: absolute;
+  top: -4px; right: -4px;
+  background: var(--yellow);
+  color: var(--bg);
+  font-size: 0.55rem;
+  font-family: var(--mono);
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 4px;
+}
+
+.priority-hint {
+  background: var(--panel2);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 0.75rem;
+  font-family: var(--mono);
+  color: var(--text2);
+  line-height: 1.7;
+}
+.priority-hint strong { color: var(--accent); }
+
+/* scroll refinement */
+.screen::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+
+<body>
+<div id="app">
+
+  <!-- OFFLINE BANNER -->
+  <div id="offline-banner">⚠ OFFLINE — payments will sync when connected</div>
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div class="topbar-logo">LOAN<span>BOOK</span></div>
+    <div class="topbar-actions">
+      <button class="sync-btn" id="sync-btn" onclick="syncData()">
+        <div class="dot"></div>
+        <span id="sync-label">SYNC</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- SCREENS -->
+  <div id="screens">
+
+    <!-- ── DASHBOARD ── -->
+    <div class="screen active" id="screen-dashboard">
+      <div class="section-title">Overview</div>
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Borrowers</div>
+          <div class="stat-value" id="stat-borrowers">—</div>
+          <div class="stat-sub" id="stat-borrowers-sub">active accounts</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Out</div>
+          <div class="stat-value" id="stat-principal" style="color:var(--accent)">—</div>
+          <div class="stat-sub">principal lent</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Interest Due</div>
+          <div class="stat-value" id="stat-interest" style="color:var(--yellow)">—</div>
+          <div class="stat-sub">uncollected</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Penalties</div>
+          <div class="stat-value" id="stat-penalty" style="color:var(--red)">—</div>
+          <div class="stat-sub">uncollected</div>
+        </div>
+      </div>
+
+      <div class="section-title">Due Today / Overdue</div>
+      <div id="due-today-list"></div>
+
+      <div class="section-title">All Borrowers</div>
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input class="search-input" id="search-input" placeholder="Search borrower..." oninput="filterBorrowers(this.value)">
+      </div>
+      <div id="borrower-list"></div>
+    </div>
+
+    <!-- ── BORROWER PROFILE ── -->
+    <div class="screen" id="screen-profile">
+      <button class="back-btn" onclick="goBack()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        All Borrowers
+      </button>
+      <div class="profile-header" id="profile-header"></div>
+      <div class="section-title">Actions</div>
+      <button class="btn btn-success" onclick="openPaymentForm()">+ Record Payment</button>
+      <button class="btn btn-primary" onclick="openLoanForm()" style="margin-top:10px">+ New Loan</button>
+      <div class="section-title">Monthly Dues</div>
+      <div id="dues-list"></div>
+      <div class="section-title">Transaction History</div>
+      <div class="card" id="txn-list" style="padding:4px 16px"></div>
+    </div>
+
+    <!-- ── PAYMENT FORM ── -->
+    <div class="screen" id="screen-payment">
+      <button class="back-btn" onclick="goToProfile()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        <span id="payment-back-label">Back</span>
+      </button>
+      <div class="page-title">Record Payment</div>
+      <div class="page-sub" id="payment-borrower-name"></div>
+
+      <div class="priority-hint">
+        Priority: <strong>Interest first</strong> → <strong>Penalty</strong> → <strong>Principal</strong><br>
+        Adjust allocations below if needed.
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Total Amount Collected (₱)</label>
+        <input class="form-input" type="number" id="pay-total" placeholder="0.00" step="0.01" oninput="autoAllocate()">
+      </div>
+
+      <div class="alloc-preview" id="alloc-preview">
+        <div class="alloc-preview-title">Auto Allocation Preview</div>
+        <div class="alloc-bar-wrap">
+          <div class="alloc-bar-label"><span>Interest</span><strong id="prev-interest">₱0.00</strong></div>
+          <div class="alloc-bar"><div class="alloc-bar-fill interest" id="bar-interest" style="width:0%"></div></div>
+        </div>
+        <div class="alloc-bar-wrap">
+          <div class="alloc-bar-label"><span>Penalty</span><strong id="prev-penalty">₱0.00</strong></div>
+          <div class="alloc-bar"><div class="alloc-bar-fill penalty" id="bar-penalty" style="width:0%"></div></div>
+        </div>
+        <div class="alloc-bar-wrap">
+          <div class="alloc-bar-label"><span>Principal</span><strong id="prev-principal">₱0.00</strong></div>
+          <div class="alloc-bar"><div class="alloc-bar-fill principal" id="bar-principal" style="width:0%"></div></div>
+        </div>
+        <div class="alloc-remaining">
+          <span>Remaining / Overage</span>
+          <strong id="alloc-remaining-val" class="ok">₱0.00</strong>
+        </div>
+      </div>
+
+      <div class="section-title">Manual Override</div>
+      <div class="alloc-row">
+        <div class="form-group">
+          <label class="form-label" style="color:var(--yellow)">Interest ₱</label>
+          <input class="form-input" type="number" id="pay-interest" placeholder="0.00" step="0.01" oninput="updateRemaining()">
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="color:var(--red)">Penalty ₱</label>
+          <input class="form-input" type="number" id="pay-penalty" placeholder="0.00" step="0.01" oninput="updateRemaining()">
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="color:var(--green)">Principal ₱</label>
+          <input class="form-input" type="number" id="pay-principal" placeholder="0.00" step="0.01" oninput="updateRemaining()">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Notes (optional)</label>
+        <input class="form-input" type="text" id="pay-notes" placeholder="e.g. Oct 15 collection">
+      </div>
+
+      <button class="btn btn-success" onclick="submitPayment()">💾 Save Payment</button>
+      <button class="btn btn-ghost" onclick="goToProfile()" style="margin-top:10px">Cancel</button>
+    </div>
+
+    <!-- ── LOAN FORM ── -->
+    <div class="screen" id="screen-loan">
+      <button class="back-btn" onclick="goToProfile()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        <span id="loan-back-label">Back</span>
+      </button>
+      <div class="page-title">New Loan</div>
+      <div class="page-sub" id="loan-borrower-name"></div>
+
+      <div class="form-group">
+        <label class="form-label">Loan Amount (₱)</label>
+        <input class="form-input" type="number" id="loan-amount" placeholder="0.00" step="0.01">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes (optional)</label>
+        <input class="form-input" type="text" id="loan-notes" placeholder="e.g. Re-loan, October">
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="stat-label">⚠️ Effectivity Rule</div>
+        <p style="font-size:0.8rem;color:var(--text2);margin-top:6px;line-height:1.6;">This loan amount will be added to the principal. Interest will only be calculated from the <strong>next billing cycle</strong> onwards.</p>
+      </div>
+      <button class="btn btn-primary" onclick="submitLoan()">💾 Record Loan</button>
+      <button class="btn btn-ghost" onclick="goToProfile()" style="margin-top:10px">Cancel</button>
+    </div>
+
+    <!-- ── ADD BORROWER ── -->
+    <div class="screen" id="screen-add-borrower">
+      <div class="page-title">New Borrower</div>
+      <div class="page-sub">Add a borrower to your ledger</div>
+
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input class="form-input" type="text" id="new-name" placeholder="e.g. Juan dela Cruz">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reference Due Date (day of month)</label>
+        <input class="form-input" type="number" id="new-due" placeholder="e.g. 15" min="1" max="31">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Initial Credit Grade</label>
+        <select class="form-select" id="new-grade">
+          <option value="Good">Good</option>
+          <option value="Excellent">Excellent</option>
+          <option value="Fair">Fair</option>
+          <option value="Risky">Risky</option>
+          <option value="Dangerous">Dangerous</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="submitNewBorrower()">+ Add Borrower</button>
+    </div>
+
+    <!-- ── SYNC QUEUE ── -->
+    <div class="screen" id="screen-queue">
+      <div class="page-title">Sync Queue</div>
+      <div class="page-sub">Offline entries waiting to sync</div>
+      <div id="queue-list"></div>
+      <button class="btn btn-primary" onclick="syncData()" style="margin-top:10px">↑ Sync Now</button>
+    </div>
+
+  </div><!-- /screens -->
+
+  <!-- BOTTOM NAV -->
+  <nav id="bottomnav">
+    <button class="nav-btn active" data-screen="dashboard" onclick="navigate('dashboard', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-btn" data-screen="add-borrower" onclick="navigate('add-borrower', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/><path d="M12 14v7m3.5-3.5L12 21l-3.5-3.5"/></svg>
+      Add
+    </button>
+    <button class="nav-btn" data-screen="queue" onclick="navigate('queue', this)" style="position:relative">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 6v6l4 2"/></svg>
+      <div class="queue-badge" id="queue-badge" style="display:none">0</div>
+      Queue
+    </button>
+  </nav>
+
+</div><!-- /app -->
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- MODAL -->
+<div id="modal-overlay" onclick="closeModal()">
+  <div id="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  CONFIG — PASTE YOUR WEB APP URL HERE
+// ═══════════════════════════════════════════════════════
+const API_URL = 'https://script.google.com/macros/s/AKfycbx2GIi_1AKGOYVq38STKVkAd-xCrlvPHHK2oSKkf-sqcZfucxWkz7K7nthcbIgmsv-0/exec'; // ← Replace with your deployed Apps Script URL
+
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+let DB = {
+  borrowers:    [],
+  monthly_dues: [],
+  transactions: [],
+  last_sync:    null,
+};
+let currentBorrowerId = null;
+let screenHistory     = ['dashboard'];
+
+// ═══════════════════════════════════════════════════════
+//  INDEXEDDB
+// ═══════════════════════════════════════════════════════
+let idb;
+function openIDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('LoanBookDB', 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('cache'))  db.createObjectStore('cache',  { keyPath: 'key' });
+      if (!db.objectStoreNames.contains('queue'))  db.createObjectStore('queue',  { keyPath: 'id', autoIncrement: true });
+    };
+    req.onsuccess = e => { idb = e.target.result; res(idb); };
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+async function idbSet(key, value) {
+  const tx = idb.transaction('cache', 'readwrite');
+  tx.objectStore('cache').put({ key, value });
+  return new Promise(r => tx.oncomplete = r);
+}
+
+async function idbGet(key) {
+  return new Promise(res => {
+    const req = idb.transaction('cache').objectStore('cache').get(key);
+    req.onsuccess = () => res(req.result?.value || null);
+    req.onerror   = () => res(null);
+  });
+}
+
+async function queueAdd(item) {
+  const tx  = idb.transaction('queue', 'readwrite');
+  const req = tx.objectStore('queue').add({ ...item, queued_at: new Date().toISOString() });
+  return new Promise(r => req.onsuccess = () => r(req.result));
+}
+
+async function queueGetAll() {
+  return new Promise(res => {
+    const req = idb.transaction('queue').objectStore('queue').getAll();
+    req.onsuccess = () => res(req.result);
+  });
+}
+
+async function queueDelete(id) {
+  const tx = idb.transaction('queue', 'readwrite');
+  tx.objectStore('queue').delete(id);
+  return new Promise(r => tx.oncomplete = r);
+}
+
+// ═══════════════════════════════════════════════════════
+//  NETWORK STATUS
+// ═══════════════════════════════════════════════════════
+function isOnline() { return navigator.onLine; }
+
+function updateNetworkUI() {
+  const banner = document.getElementById('offline-banner');
+  const btn    = document.getElementById('sync-btn');
+  if (isOnline()) {
+    banner.classList.remove('visible');
+    btn.classList.add('online');
+  } else {
+    banner.classList.add('visible');
+    btn.classList.remove('online');
+  }
+  updateQueueBadge();
+}
+
+window.addEventListener('online',  () => { updateNetworkUI(); syncData(); });
+window.addEventListener('offline', updateNetworkUI);
+
+// ═══════════════════════════════════════════════════════
+//  SYNC
+// ═══════════════════════════════════════════════════════
+async function syncData() {
+  if (!isOnline()) { showToast('Offline — cannot sync', 'error'); return; }
+
+  const btn   = document.getElementById('sync-btn');
+  const label = document.getElementById('sync-label');
+  btn.classList.add('syncing');
+  label.textContent = 'SYNCING';
+
+  // First flush the queue
+  await flushQueue();
+
+  try {
+    const resp = await fetch(API_URL + '?action=sync');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    DB.borrowers    = data.borrowers    || [];
+    DB.monthly_dues = data.monthly_dues || [];
+    DB.transactions = data.transactions || [];
+    DB.last_sync    = new Date().toISOString();
+
+    await idbSet('DB', DB);
+    renderDashboard();
+    showToast('Synced ✓', 'success');
+  } catch (err) {
+    showToast('Sync failed: ' + err.message, 'error');
+  }
+
+  btn.classList.remove('syncing');
+  btn.classList.add('online');
+  label.textContent = 'SYNC';
+}
+
+async function flushQueue() {
+  const items = await queueGetAll();
+  for (const item of items) {
+    try {
+      const resp = await fetch(API_URL, {
+        method: 'POST',
+        body:   JSON.stringify(item.payload),
+      });
+      const data = await resp.json();
+      if (!data.error) await queueDelete(item.id);
+    } catch (_) { break; } // stop if offline
+  }
+  updateQueueBadge();
+}
+
+async function apiPost(payload) {
+  if (isOnline()) {
+    try {
+      const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      return data;
+    } catch (err) {
+      // Fall through to queue
+    }
+  }
+  // Offline or error → queue it
+  await queueAdd({ payload });
+  updateQueueBadge();
+  return { status: 'queued', message: 'Saved offline. Will sync when connected.' };
+}
+
+async function updateQueueBadge() {
+  const items  = await queueGetAll();
+  const badge  = document.getElementById('queue-badge');
+  if (items.length > 0) {
+    badge.style.display = 'flex';
+    badge.textContent   = items.length;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════════
+function navigate(screenName, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + screenName).classList.add('active');
+  if (btn) btn.classList.add('active');
+  screenHistory = [screenName];
+
+  if (screenName === 'queue') renderQueue();
+  if (screenName === 'add-borrower') clearAddBorrowerForm();
+}
+
+function goToScreen(screenName) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + screenName).classList.add('active');
+  screenHistory.push(screenName);
+}
+
+function goBack() {
+  screenHistory.pop();
+  const prev = screenHistory[screenHistory.length - 1] || 'dashboard';
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + prev).classList.add('active');
+  if (prev === 'dashboard') {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('[data-screen="dashboard"]').classList.add('active');
+  }
+}
+
+function goToProfile() { goToScreen('profile'); }
+
+// ═══════════════════════════════════════════════════════
+//  DASHBOARD RENDERING
+// ═══════════════════════════════════════════════════════
+function renderDashboard() {
+  const active = DB.borrowers.filter(b => b.Status === 'Active');
+  let totalPrincipal = 0, totalInterest = 0, totalPenalty = 0;
+  active.forEach(b => {
+    totalPrincipal += Number(b.principal_balance  || 0);
+    totalInterest  += Number(b.total_interest_due || 0);
+    totalPenalty   += Number(b.total_penalty_due  || 0);
+  });
+
+  document.getElementById('stat-borrowers').textContent    = active.length;
+  document.getElementById('stat-principal').textContent    = fmt(totalPrincipal);
+  document.getElementById('stat-interest').textContent     = fmt(totalInterest);
+  document.getElementById('stat-penalty').textContent      = fmt(totalPenalty);
+
+  const today = new Date().getDate();
+
+  // Due today / overdue
+  const dueTodayEl = document.getElementById('due-today-list');
+  const overdue = active.filter(b => {
+    const refDay = Number(b.Ref_Due_Date);
+    const hasDue = DB.monthly_dues.some(d =>
+      d.Borrower_ID === b.Borrower_ID && d.Status !== 'Paid'
+    );
+    return hasDue;
+  });
+  if (overdue.length === 0) {
+    dueTodayEl.innerHTML = '<div class="empty-state"><span class="emoji">✅</span>No overdue borrowers</div>';
+  } else {
+    dueTodayEl.innerHTML = overdue.slice(0, 5).map(b => borrowerCardHTML(b, true)).join('');
+  }
+
+  // All borrowers list
+  renderBorrowerList(DB.borrowers);
+}
+
+function renderBorrowerList(list) {
+  const el = document.getElementById('borrower-list');
+  if (list.length === 0) {
+    el.innerHTML = '<div class="empty-state"><span class="emoji">📋</span>No borrowers yet.<br>Tap Add to get started.</div>';
+    return;
+  }
+  el.innerHTML = list.map(b => borrowerCardHTML(b)).join('');
+}
+
+function borrowerCardHTML(b, compact) {
+  const unpaidDues = DB.monthly_dues.filter(
+    d => d.Borrower_ID === b.Borrower_ID && d.Status !== 'Paid'
+  );
+  const indicatorClass = b.Status === 'Closed' ? 'closed' : (unpaidDues.length > 0 ? 'overdue' : 'ok');
+  const principal  = Number(b.principal_balance  || 0);
+  const interest   = Number(b.total_interest_due || 0);
+  const penalty    = Number(b.total_penalty_due  || 0);
+  const total      = principal + interest + penalty;
+
+  return `
+    <div class="card borrower-card" onclick="openProfile('${b.Borrower_ID}')">
+      <div class="due-indicator ${indicatorClass}"></div>
+      <div style="padding-left:8px">
+        <div class="card-row">
+          <div class="borrower-name">${b.Full_Name}</div>
+          <span class="grade grade-${b.Credit_Grade}">${b.Credit_Grade}</span>
+        </div>
+        <div class="borrower-meta">
+          <span class="meta-tag">Due: ${b.Ref_Due_Date}th</span>
+          <span class="meta-tag">${b.Status}</span>
+          ${unpaidDues.length > 0 ? `<span class="meta-tag" style="color:var(--red)">${unpaidDues.length} unpaid</span>` : ''}
+        </div>
+        <div class="balance-strip">
+          <div class="bal-item">
+            <div class="bal-label">Principal</div>
+            <div class="bal-value principal">${fmt(principal)}</div>
+          </div>
+          <div class="bal-item">
+            <div class="bal-label">Interest</div>
+            <div class="bal-value interest">${fmt(interest)}</div>
+          </div>
+          <div class="bal-item">
+            <div class="bal-label">Total Due</div>
+            <div class="bal-value total">${fmt(total)}</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function filterBorrowers(query) {
+  const q = query.toLowerCase();
+  const filtered = DB.borrowers.filter(b => b.Full_Name.toLowerCase().includes(q));
+  renderBorrowerList(filtered);
+}
+
+// ═══════════════════════════════════════════════════════
+//  PROFILE
+// ═══════════════════════════════════════════════════════
+function openProfile(borrowerId) {
+  currentBorrowerId = borrowerId;
+  const b = DB.borrowers.find(x => x.Borrower_ID === borrowerId);
+  if (!b) return;
+
+  const principal = Number(b.principal_balance  || 0);
+  const interest  = Number(b.total_interest_due || 0);
+  const penalty   = Number(b.total_penalty_due  || 0);
+  const total     = principal + interest + penalty;
+
+  document.getElementById('profile-header').innerHTML = `
+    <div class="profile-name">${b.Full_Name}</div>
+    <div class="profile-badges">
+      <span class="grade grade-${b.Credit_Grade}">${b.Credit_Grade}</span>
+      <span class="meta-tag">${b.Status}</span>
+      <span class="meta-tag">Due: ${b.Ref_Due_Date}th every month</span>
+    </div>
+    <div class="profile-balance-grid">
+      <div class="pbal-item">
+        <div class="pbal-label">Principal</div>
+        <div class="pbal-value" style="color:var(--text)">${fmt(principal)}</div>
+      </div>
+      <div class="pbal-item">
+        <div class="pbal-label">Interest Due</div>
+        <div class="pbal-value" style="color:var(--yellow)">${fmt(interest)}</div>
+      </div>
+      <div class="pbal-item">
+        <div class="pbal-label">Penalty Due</div>
+        <div class="pbal-value" style="color:var(--red)">${fmt(penalty)}</div>
+      </div>
+      <div class="pbal-item">
+        <div class="pbal-label">Total Outstanding</div>
+        <div class="pbal-value" style="color:var(--accent)">${fmt(total)}</div>
+      </div>
+    </div>`;
+
+  // Dues
+  const dues = DB.monthly_dues
+    .filter(d => d.Borrower_ID === borrowerId)
+    .sort((a, b) => b.Month_Year.localeCompare(a.Month_Year));
+
+  const duesEl = document.getElementById('dues-list');
+  if (dues.length === 0) {
+    duesEl.innerHTML = '<div class="empty-state" style="padding:24px 0"><span class="emoji">📅</span>No dues generated yet</div>';
+  } else {
+    duesEl.innerHTML = dues.map(d => `
+      <div class="due-item">
+        <div>
+          <div class="due-month">${d.Month_Year}</div>
+          <div class="due-amounts">
+            Int: ${fmt(Number(d.Interest_Due))} &nbsp;|&nbsp;
+            Pen: ${fmt(Number(d.Penalty_Due))} &nbsp;|&nbsp;
+            Paid: ${fmt(Number(d.Amount_Paid))}
+          </div>
+        </div>
+        <span class="due-status ${d.Status}">${d.Status}</span>
+      </div>`).join('');
+  }
+
+  // Transactions
+  const txns = DB.transactions
+    .filter(t => t.Borrower_ID === borrowerId)
+    .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
+
+  const txnEl = document.getElementById('txn-list');
+  if (txns.length === 0) {
+    txnEl.innerHTML = '<div class="empty-state" style="padding:24px 0"><span class="emoji">📂</span>No transactions yet</div>';
+  } else {
+    txnEl.innerHTML = txns.map(t => {
+      const d = new Date(t.Timestamp);
+      const dateStr = d.toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' });
+      const isLoan  = t.Txn_Type === 'Loan';
+      const breakdown = isLoan
+        ? `Principal: ${fmt(Number(t.Alloc_Principal))}`
+        : `Int: ${fmt(Number(t.Alloc_Interest))} · Pen: ${fmt(Number(t.Alloc_Penalty))} · Prin: ${fmt(Number(t.Alloc_Principal))}`;
+      return `
+        <div class="txn-item">
+          <div class="txn-icon ${isLoan ? 'loan' : 'payment'}">${isLoan ? '↓' : '↑'}</div>
+          <div class="txn-info">
+            <div class="txn-type">${t.Txn_Type}</div>
+            <div class="txn-date">${dateStr}</div>
+            <div class="txn-breakdown">${breakdown}</div>
+            ${t.Notes ? `<div class="txn-breakdown" style="color:var(--text3)">${t.Notes}</div>` : ''}
+          </div>
+          <div class="txn-amount ${isLoan ? 'loan' : 'payment'}">${isLoan ? '+' : '-'}${fmt(Number(t.Total_Amount))}</div>
+        </div>`;
+    }).join('');
+  }
+
+  goToScreen('profile');
+}
+
+// ═══════════════════════════════════════════════════════
+//  PAYMENT FORM
+// ═══════════════════════════════════════════════════════
+function openPaymentForm() {
+  const b = DB.borrowers.find(x => x.Borrower_ID === currentBorrowerId);
+  document.getElementById('payment-borrower-name').textContent = b?.Full_Name || '';
+  document.getElementById('payment-back-label').textContent   = b?.Full_Name || 'Back';
+  document.getElementById('pay-total').value     = '';
+  document.getElementById('pay-interest').value  = '';
+  document.getElementById('pay-penalty').value   = '';
+  document.getElementById('pay-principal').value = '';
+  document.getElementById('pay-notes').value     = '';
+  updateRemaining();
+  goToScreen('payment');
+}
+
+function autoAllocate() {
+  const b       = DB.borrowers.find(x => x.Borrower_ID === currentBorrowerId);
+  const total   = parseFloat(document.getElementById('pay-total').value) || 0;
+  const intDue  = Number(b?.total_interest_due || 0);
+  const penDue  = Number(b?.total_penalty_due  || 0);
+
+  let remaining = total;
+  const i = Math.min(remaining, intDue); remaining -= i;
+  const p = Math.min(remaining, penDue); remaining -= p;
+  const pr = Math.max(0, remaining);
+
+  document.getElementById('pay-interest').value  = i.toFixed(2);
+  document.getElementById('pay-penalty').value   = p.toFixed(2);
+  document.getElementById('pay-principal').value = pr.toFixed(2);
+
+  updateBars(total, i, p, pr);
+  updateRemaining();
+}
+
+function updateBars(total, i, p, pr) {
+  if (total <= 0) {
+    ['interest','penalty','principal'].forEach(k => {
+      document.getElementById('bar-' + k).style.width = '0%';
+    });
+    document.getElementById('prev-interest').textContent  = '₱0.00';
+    document.getElementById('prev-penalty').textContent   = '₱0.00';
+    document.getElementById('prev-principal').textContent = '₱0.00';
+    return;
+  }
+  document.getElementById('bar-interest').style.width   = (i  / total * 100) + '%';
+  document.getElementById('bar-penalty').style.width    = (p  / total * 100) + '%';
+  document.getElementById('bar-principal').style.width  = (pr / total * 100) + '%';
+  document.getElementById('prev-interest').textContent  = '₱' + i.toFixed(2);
+  document.getElementById('prev-penalty').textContent   = '₱' + p.toFixed(2);
+  document.getElementById('prev-principal').textContent = '₱' + pr.toFixed(2);
+}
+
+function updateRemaining() {
+  const total = parseFloat(document.getElementById('pay-total').value)    || 0;
+  const i     = parseFloat(document.getElementById('pay-interest').value)  || 0;
+  const p     = parseFloat(document.getElementById('pay-penalty').value)   || 0;
+  const pr    = parseFloat(document.getElementById('pay-principal').value) || 0;
+  const rem   = Math.round((total - i - p - pr) * 100) / 100;
+  const el    = document.getElementById('alloc-remaining-val');
+  el.textContent = (rem >= 0 ? '₱' : '-₱') + Math.abs(rem).toFixed(2);
+  el.className   = 'ok' + (Math.abs(rem) > 0.01 ? ' bad' : ' ok');
+}
+
+async function submitPayment() {
+  const total = parseFloat(document.getElementById('pay-total').value)    || 0;
+  const i     = parseFloat(document.getElementById('pay-interest').value)  || 0;
+  const p     = parseFloat(document.getElementById('pay-penalty').value)   || 0;
+  const pr    = parseFloat(document.getElementById('pay-principal').value) || 0;
+  const notes = document.getElementById('pay-notes').value.trim();
+
+  if (total <= 0) { showToast('Enter a total amount', 'error'); return; }
+
+  const sum = Math.round((i + p + pr) * 100) / 100;
+  const tot = Math.round(total * 100) / 100;
+  if (sum !== tot) { showToast('Allocation must equal total', 'error'); return; }
+
+  const result = await apiPost({
+    action:          'addPayment',
+    borrower_id:     currentBorrowerId,
+    total_amount:    tot,
+    alloc_interest:  i,
+    alloc_penalty:   p,
+    alloc_principal: pr,
+    notes,
+  });
+
+  showToast(result.message || 'Payment saved', result.status === 'queued' ? '' : 'success');
+  await syncData();
+  openProfile(currentBorrowerId);
+}
+
+// ═══════════════════════════════════════════════════════
+//  LOAN FORM
+// ═══════════════════════════════════════════════════════
+function openLoanForm() {
+  const b = DB.borrowers.find(x => x.Borrower_ID === currentBorrowerId);
+  document.getElementById('loan-borrower-name').textContent = b?.Full_Name || '';
+  document.getElementById('loan-back-label').textContent    = b?.Full_Name || 'Back';
+  document.getElementById('loan-amount').value = '';
+  document.getElementById('loan-notes').value  = '';
+  goToScreen('loan');
+}
+
+async function submitLoan() {
+  const amount = parseFloat(document.getElementById('loan-amount').value) || 0;
+  const notes  = document.getElementById('loan-notes').value.trim();
+  if (amount <= 0) { showToast('Enter a loan amount', 'error'); return; }
+
+  const result = await apiPost({
+    action:      'addLoan',
+    borrower_id: currentBorrowerId,
+    amount,
+    notes,
+  });
+
+  showToast(result.message || 'Loan recorded', result.status === 'queued' ? '' : 'success');
+  await syncData();
+  openProfile(currentBorrowerId);
+}
+
+// ═══════════════════════════════════════════════════════
+//  ADD BORROWER
+// ═══════════════════════════════════════════════════════
+function clearAddBorrowerForm() {
+  document.getElementById('new-name').value  = '';
+  document.getElementById('new-due').value   = '';
+  document.getElementById('new-grade').value = 'Good';
+}
+
+async function submitNewBorrower() {
+  const name  = document.getElementById('new-name').value.trim();
+  const due   = parseInt(document.getElementById('new-due').value) || 0;
+  const grade = document.getElementById('new-grade').value;
+
+  if (!name)          { showToast('Enter borrower name', 'error'); return; }
+  if (due < 1 || due > 31) { showToast('Due date must be 1–31', 'error'); return; }
+
+  const result = await apiPost({
+    action:       'addBorrower',
+    full_name:    name,
+    ref_due_date: due,
+    credit_grade: grade,
+  });
+
+  showToast(result.message || 'Borrower added', result.status === 'queued' ? '' : 'success');
+  if (result.status !== 'queued') {
+    await syncData();
+    navigate('dashboard', document.querySelector('[data-screen="dashboard"]'));
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  QUEUE SCREEN
+// ═══════════════════════════════════════════════════════
+async function renderQueue() {
+  const items = await queueGetAll();
+  const el    = document.getElementById('queue-list');
+  if (items.length === 0) {
+    el.innerHTML = '<div class="empty-state"><span class="emoji">✅</span>Queue is empty.<br>All data is synced.</div>';
+    return;
+  }
+  el.innerHTML = items.map(item => `
+    <div class="card">
+      <div class="stat-label">${item.payload.action}</div>
+      <div style="font-size:0.78rem;color:var(--text2);margin-top:4px;font-family:var(--mono)">${JSON.stringify(item.payload).slice(0,80)}...</div>
+      <div style="font-size:0.65rem;color:var(--text3);margin-top:6px;font-family:var(--mono)">${item.queued_at}</div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//  MODAL
+// ═══════════════════════════════════════════════════════
+function openModal(html) {
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════
+let toastTimer;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent  = msg;
+  el.className    = 'show ' + (type || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 2800);
+}
+
+// ═══════════════════════════════════════════════════════
+//  FORMAT HELPERS
+// ═══════════════════════════════════════════════════════
+function fmt(n) {
+  return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ═══════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════
+async function boot() {
+  await openIDB();
+
+  // Load cached data first (instant)
+  const cached = await idbGet('DB');
+  if (cached) {
+    DB = cached;
+    renderDashboard();
+  }
+
+  updateNetworkUI();
+  updateQueueBadge();
+
+  // Then sync if online
+  if (isOnline()) syncData();
+}
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+boot();
+</script>
+</body>
+</html>
