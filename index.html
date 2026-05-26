@@ -12,851 +12,480 @@
 <title>LoanBook</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
-
 <style>
-/* ═══════════════════════════════════════════
-   TOKENS
-═══════════════════════════════════════════ */
+/* ── TOKENS ── */
 :root {
-  --bg:        #080c17;
-  --bg2:       #0d1120;
-  --panel:     #111827;
-  --panel2:    #1a2235;
-  --border:    #1f2d45;
-  --border2:   #2a3d5a;
-  --accent:    #3b8fff;
-  --accent-d:  #1a6fd4;
-  --green:     #00d97e;
-  --red:       #ff4d6d;
-  --yellow:    #ffc233;
-  --purple:    #a78bfa;
-  --text:      #e8edf5;
-  --text2:     #8899b4;
-  --text3:     #4a5a75;
-  --mono:      'Space Mono', monospace;
-  --sans:      'Syne', sans-serif;
-  --r:         12px;
-  --r-sm:      8px;
-  --safe-b:    env(safe-area-inset-bottom, 0px);
+  --bg:#080c17; --bg2:#0d1120; --panel:#111827; --panel2:#1a2235;
+  --border:#1f2d45; --border2:#2a3d5a;
+  --accent:#3b8fff; --accent-d:#1a6fd4;
+  --green:#00d97e; --red:#ff4d6d; --yellow:#ffc233; --purple:#a78bfa;
+  --text:#e8edf5; --text2:#8899b4; --text3:#4a5a75;
+  --mono:'Space Mono',monospace; --sans:'Syne',sans-serif;
+  --r:12px; --r-sm:8px;
+  --safe-b:env(safe-area-inset-bottom,0px);
 }
 
-/* ═══════════════════════════════════════════
-   RESET + BASE
-═══════════════════════════════════════════ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; overflow: hidden; }
-body {
-  font-family: var(--sans);
-  background: var(--bg);
-  color: var(--text);
-  overscroll-behavior: none;
-  -webkit-font-smoothing: antialiased;
-}
+/* ── RESET ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);overscroll-behavior:none;-webkit-font-smoothing:antialiased}
+input,textarea,select,button{font-family:inherit}
+button{cursor:pointer;border:none;background:none;color:inherit}
 
-input, textarea, select, button { font-family: inherit; }
-button { cursor: pointer; border: none; background: none; color: inherit; }
+/* ── SHELL ── */
+#app{display:flex;flex-direction:column;height:100dvh;height:100vh}
 
-/* ═══════════════════════════════════════════
-   LAYOUT SHELL
-═══════════════════════════════════════════ */
-#app {
-  display: flex;
-  flex-direction: column;
-  height: 100dvh;
-  height: 100vh;
-}
+/* ── TOPBAR ── */
+#topbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:14px 20px 12px;background:var(--bg);border-bottom:1px solid var(--border);z-index:10}
+.topbar-logo{font-family:var(--mono);font-weight:700;font-size:1.05rem;letter-spacing:.08em;color:var(--accent)}
+.topbar-logo span{color:var(--text2);font-weight:400}
+.sync-btn{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:20px;padding:6px 14px;font-size:.75rem;font-family:var(--mono);color:var(--text2);transition:all .2s}
+.sync-btn .dot{width:6px;height:6px;border-radius:50%;background:var(--text3);transition:background .3s}
+.sync-btn.online .dot{background:var(--green)}
+.sync-btn.syncing .dot{background:var(--yellow);animation:pulse .8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-/* ═══════════════════════════════════════════
-   TOP BAR
-═══════════════════════════════════════════ */
-#topbar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px 12px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  position: relative;
-  z-index: 10;
-}
+/* ── OFFLINE BANNER ── */
+#offline-banner{background:rgba(255,194,51,.1);border-bottom:1px solid rgba(255,194,51,.3);color:var(--yellow);font-family:var(--mono);font-size:.72rem;text-align:center;padding:6px;display:none;letter-spacing:.05em}
+#offline-banner.visible{display:block}
 
-.topbar-logo {
-  font-family: var(--mono);
-  font-weight: 700;
-  font-size: 1.05rem;
-  letter-spacing: 0.08em;
-  color: var(--accent);
-}
-.topbar-logo span { color: var(--text2); font-weight: 400; }
+/* ── SCREENS ── */
+#screens{flex:1;overflow:hidden;position:relative}
+.screen{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:16px 16px calc(80px + var(--safe-b));display:none;opacity:0;transform:translateX(16px);transition:opacity .2s,transform .2s}
+.screen.active{display:block;opacity:1;transform:translateX(0)}
+.screen::-webkit-scrollbar{width:0}
 
-.topbar-actions { display: flex; gap: 8px; align-items: center; }
+/* ── BOTTOM NAV ── */
+#bottomnav{flex-shrink:0;display:flex;background:var(--bg2);border-top:1px solid var(--border);padding-bottom:var(--safe-b);z-index:10}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px 8px;color:var(--text3);font-size:.6rem;font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase;transition:color .2s;position:relative}
+.nav-btn svg{width:22px;height:22px;stroke-width:1.8}
+.nav-btn.active{color:var(--accent)}
+.nav-btn.active svg{filter:drop-shadow(0 0 6px rgba(59,143,255,.5))}
+.queue-badge{position:absolute;top:4px;right:calc(50% - 18px);background:var(--yellow);color:#020a14;font-size:.55rem;font-family:var(--mono);font-weight:700;min-width:16px;height:16px;border-radius:8px;display:none;align-items:center;justify-content:center;padding:0 4px}
 
-.sync-btn {
-  display: flex; align-items: center; gap: 6px;
-  background: var(--panel2);
-  border: 1px solid var(--border2);
-  border-radius: 20px;
-  padding: 6px 14px;
-  font-size: 0.75rem;
-  font-family: var(--mono);
-  color: var(--text2);
-  transition: all 0.2s;
-}
-.sync-btn:active { background: var(--border2); }
-.sync-btn .dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--text3);
-  transition: background 0.3s;
-}
-.sync-btn.online .dot { background: var(--green); }
-.sync-btn.syncing .dot { background: var(--yellow); animation: pulse 0.8s infinite; }
+/* ── TYPE HELPERS ── */
+.section-label{font-size:.62rem;font-family:var(--mono);letter-spacing:.18em;color:var(--text3);text-transform:uppercase;margin:20px 0 8px;display:flex;align-items:center;gap:8px}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.section-label:first-child{margin-top:4px}
+.page-title{font-size:1.4rem;font-weight:800;letter-spacing:-.02em;margin-bottom:2px}
+.page-sub{font-size:.85rem;color:var(--text2);margin-bottom:18px}
 
-@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+/* ── BACK BTN ── */
+.back-btn{display:flex;align-items:center;gap:6px;color:var(--accent);font-size:.82rem;font-family:var(--mono);margin-bottom:16px;padding:4px 0}
+.back-btn svg{width:16px}
 
-/* ═══════════════════════════════════════════
-   SCREEN SYSTEM
-═══════════════════════════════════════════ */
-#screens {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-}
+/* ── CARDS ── */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:10px;position:relative;overflow:hidden}
 
-.screen {
-  position: absolute;
-  inset: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  padding: 16px 16px calc(80px + var(--safe-b));
-  display: none;
-  opacity: 0;
-  transform: translateX(20px);
-  transition: opacity 0.22s ease, transform 0.22s ease;
-}
-.screen.active {
-  display: block;
-  opacity: 1;
-  transform: translateX(0);
-}
+/* ── BORROWER CARD ── */
+.borrower-card{cursor:pointer;transition:border-color .2s,transform .15s}
+.borrower-card:active{transform:scale(.98);border-color:var(--border2)}
+.bcard-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;padding-left:10px}
+.bcard-name{font-weight:700;font-size:1rem;letter-spacing:-.01em}
+.bcard-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding-left:10px}
+.meta-tag{font-family:var(--mono);font-size:.63rem;padding:3px 7px;border-radius:4px;background:var(--panel2);color:var(--text2);letter-spacing:.04em}
+.meta-tag.red{background:rgba(255,77,109,.12);color:var(--red)}
+.meta-tag.yellow{background:rgba(255,194,51,.12);color:var(--yellow)}
+.meta-tag.green{background:rgba(0,217,126,.12);color:var(--green)}
 
-/* ═══════════════════════════════════════════
-   BOTTOM NAV
-═══════════════════════════════════════════ */
-#bottomnav {
-  flex-shrink: 0;
-  display: flex;
-  background: var(--bg2);
-  border-top: 1px solid var(--border);
-  padding-bottom: var(--safe-b);
-  position: relative;
-  z-index: 10;
-}
+/* color bar on left edge */
+.bcard-bar{position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:12px 0 0 12px}
+.bcard-bar.overdue{background:var(--red)}
+.bcard-bar.ok{background:var(--green)}
+.bcard-bar.closed{background:var(--text3)}
 
-.nav-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 4px 8px;
-  color: var(--text3);
-  font-size: 0.6rem;
-  font-family: var(--mono);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  transition: color 0.2s;
-}
-.nav-btn svg { width: 22px; height: 22px; stroke-width: 1.8; }
-.nav-btn.active { color: var(--accent); }
-.nav-btn.active svg { filter: drop-shadow(0 0 6px rgba(59,143,255,0.5)); }
+/* balance row inside borrower card */
+.bal-strip{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;border-top:1px solid var(--border);padding-top:10px;padding-left:10px;margin-top:2px}
+.bal-item{text-align:left}
+.bal-lbl{font-size:.58rem;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.07em}
+.bal-val{font-family:var(--mono);font-size:.78rem;font-weight:700;margin-top:2px}
+.bal-val.c-text{color:var(--text)}
+.bal-val.c-yellow{color:var(--yellow)}
+.bal-val.c-red{color:var(--red)}
+.bal-val.c-accent{color:var(--accent)}
 
-/* ═══════════════════════════════════════════
-   TYPOGRAPHY HELPERS
-═══════════════════════════════════════════ */
-.section-title {
-  font-size: 0.65rem;
-  font-family: var(--mono);
-  letter-spacing: 0.15em;
-  color: var(--text3);
-  text-transform: uppercase;
-  margin: 20px 0 10px;
-}
-.section-title:first-child { margin-top: 4px; }
+/* ── GRADES ── */
+.grade{font-family:var(--mono);font-size:.62rem;font-weight:700;padding:3px 8px;border-radius:4px;letter-spacing:.05em}
+.grade-Excellent{background:rgba(0,217,126,.15);color:var(--green)}
+.grade-Good{background:rgba(59,143,255,.15);color:var(--accent)}
+.grade-Fair{background:rgba(255,194,51,.15);color:var(--yellow)}
+.grade-Risky{background:rgba(255,140,50,.15);color:#ff8c32}
+.grade-Dangerous{background:rgba(255,77,109,.15);color:var(--red)}
 
-.page-title {
-  font-size: 1.5rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  margin-bottom: 4px;
-}
-.page-sub { font-size: 0.85rem; color: var(--text2); margin-bottom: 20px; }
+/* ── STAT GRID (dashboard) ── */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px}
+.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.stat-lbl{font-size:.6rem;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
+.stat-val{font-size:1.3rem;font-weight:800;letter-spacing:-.02em;line-height:1}
+.stat-sub{font-size:.68rem;font-family:var(--mono);color:var(--text2);margin-top:4px}
 
-/* ═══════════════════════════════════════════
-   CARDS
-═══════════════════════════════════════════ */
-.card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 16px;
-  margin-bottom: 10px;
-  position: relative;
-  overflow: hidden;
-}
-.card:active { background: var(--panel2); }
+/* ── SEARCH ── */
+.search-wrap{position:relative;margin-bottom:12px}
+.search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;color:var(--text3)}
+.search-input{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);padding:10px 12px 10px 36px;font-size:.9rem;outline:none;transition:border-color .2s}
+.search-input:focus{border-color:var(--border2)}
+.search-input::placeholder{color:var(--text3)}
 
-.card-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+/* ── FORMS ── */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:.68rem;font-family:var(--mono);color:var(--text2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
+.form-input,.form-select{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);padding:12px 14px;font-size:.95rem;font-family:var(--sans);outline:none;appearance:none;transition:border-color .2s}
+.form-input:focus,.form-select:focus{border-color:var(--accent)}
+.form-input::placeholder{color:var(--text3)}
+.form-input.highlight{border-color:var(--yellow)}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 
-.borrower-card {
-  cursor: pointer;
-  transition: border-color 0.2s, transform 0.15s;
-}
-.borrower-card:active { transform: scale(0.98); border-color: var(--border2); }
+/* ── BUTTONS ── */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border-radius:var(--r-sm);font-size:.9rem;font-weight:700;letter-spacing:.02em;transition:all .18s}
+.btn+.btn{margin-top:10px}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:active{background:var(--accent-d);transform:scale(.98)}
+.btn-primary:disabled{background:var(--border2);color:var(--text3);pointer-events:none}
+.btn-success{background:var(--green);color:#020a14}
+.btn-success:active{filter:brightness(.88);transform:scale(.98)}
+.btn-success:disabled{background:var(--border2);color:var(--text3);pointer-events:none}
+.btn-ghost{background:var(--panel2);border:1px solid var(--border2);color:var(--text2)}
+.btn-ghost:active{background:var(--border)}
+.btn-danger{background:rgba(255,77,109,.12);border:1px solid var(--red);color:var(--red)}
+.btn-danger:active{background:rgba(255,77,109,.2)}
+.btn-sm{padding:8px 14px;font-size:.78rem;width:auto}
 
-.borrower-name {
-  font-weight: 700;
-  font-size: 1rem;
-  letter-spacing: -0.01em;
-  margin-bottom: 6px;
-}
-.borrower-meta {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-.meta-tag {
-  font-family: var(--mono);
-  font-size: 0.65rem;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: var(--panel2);
-  color: var(--text2);
-  letter-spacing: 0.04em;
-}
+/* ── PROFILE HEADER ── */
+.profile-header{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:12px}
+.profile-name{font-size:1.3rem;font-weight:800;letter-spacing:-.02em;margin-bottom:6px}
+.profile-badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.profile-bal-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pbal{background:var(--panel2);border-radius:var(--r-sm);padding:10px 12px}
+.pbal-lbl{font-size:.6rem;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.08em}
+.pbal-val{font-family:var(--mono);font-weight:700;font-size:1rem;margin-top:4px}
 
-.balance-strip {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px;
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
-  margin-top: 2px;
-}
-.bal-item { text-align: center; }
-.bal-label { font-size: 0.6rem; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
-.bal-value { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; margin-top: 2px; }
-.bal-value.principal { color: var(--text); }
-.bal-value.interest  { color: var(--yellow); }
-.bal-value.penalty   { color: var(--red); }
-.bal-value.total     { color: var(--accent); }
+/* ── ACTION BUTTONS GRID (profile) ── */
+.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px}
+.action-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:16px 10px;font-size:.72rem;font-family:var(--mono);color:var(--text2);letter-spacing:.04em;cursor:pointer;transition:all .18s;text-transform:uppercase}
+.action-btn:active{transform:scale(.96)}
+.action-btn .ico{font-size:1.4rem}
+.action-btn.green{border-color:rgba(0,217,126,.3);color:var(--green)}
+.action-btn.blue{border-color:rgba(59,143,255,.3);color:var(--accent)}
+.action-btn.red{border-color:rgba(255,77,109,.3);color:var(--red)}
 
-/* Due-date indicator strip on left */
-.due-indicator {
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 3px;
-  border-radius: 12px 0 0 12px;
-}
-.due-indicator.overdue  { background: var(--red); }
-.due-indicator.due-soon { background: var(--yellow); }
-.due-indicator.ok       { background: var(--green); }
-.due-indicator.closed   { background: var(--text3); }
+/* ── DUES LIST ── */
+.due-item{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.due-month{font-family:var(--mono);font-size:.8rem;font-weight:700}
+.due-amounts{font-size:.67rem;font-family:var(--mono);color:var(--text2);margin-top:3px}
+.due-status{font-family:var(--mono);font-size:.62rem;padding:3px 8px;border-radius:4px;font-weight:700}
+.due-status.Unpaid{background:rgba(255,77,109,.15);color:var(--red)}
+.due-status.Partial{background:rgba(255,194,51,.15);color:var(--yellow)}
+.due-status.Paid{background:rgba(0,217,126,.15);color:var(--green)}
 
-/* ═══════════════════════════════════════════
-   GRADE BADGES
-═══════════════════════════════════════════ */
-.grade {
-  font-family: var(--mono);
-  font-size: 0.62rem;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 4px;
-  letter-spacing: 0.06em;
-}
-.grade-Excellent { background: rgba(0,217,126,0.15); color: var(--green); }
-.grade-Good      { background: rgba(59,143,255,0.15); color: var(--accent); }
-.grade-Fair      { background: rgba(255,194,51,0.15); color: var(--yellow); }
-.grade-Risky     { background: rgba(255,140,50,0.15); color: #ff8c32; }
-.grade-Dangerous { background: rgba(255,77,109,0.15); color: var(--red); }
+/* ── TRANSACTION LIST ── */
+.txn-list-wrap{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.txn-item{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--border);position:relative}
+.txn-item:last-child{border-bottom:none}
+.txn-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem}
+.txn-icon.loan{background:rgba(59,143,255,.15)}
+.txn-icon.payment{background:rgba(0,217,126,.15)}
+.txn-info{flex:1;min-width:0}
+.txn-type{font-size:.8rem;font-weight:700;margin-bottom:1px}
+.txn-date{font-size:.67rem;font-family:var(--mono);color:var(--text3);margin-bottom:3px}
+.txn-breakdown{font-size:.67rem;font-family:var(--mono);color:var(--text2)}
+.txn-note{font-size:.67rem;font-family:var(--mono);color:var(--text3);margin-top:1px}
+.txn-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.txn-amount{font-family:var(--mono);font-weight:700;font-size:.88rem;white-space:nowrap}
+.txn-amount.loan{color:var(--red)}
+.txn-amount.payment{color:var(--green)}
+.txn-del-btn{font-size:.65rem;font-family:var(--mono);color:var(--text3);background:var(--panel2);border:1px solid var(--border2);border-radius:4px;padding:3px 7px;cursor:pointer;white-space:nowrap}
+.txn-del-btn:active{background:rgba(255,77,109,.15);border-color:var(--red);color:var(--red)}
 
-/* ═══════════════════════════════════════════
-   STAT SUMMARY CARDS (Dashboard)
-═══════════════════════════════════════════ */
-.stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-.stat-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 14px;
-}
-.stat-label { font-size: 0.62rem; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
-.stat-value { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
-.stat-sub   { font-size: 0.7rem; font-family: var(--mono); color: var(--text2); margin-top: 4px; }
+/* ── PAYMENT SUMMARY BOX ── */
+.pay-summary{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r-sm);padding:14px;margin-bottom:16px}
+.pay-summary-title{font-size:.62rem;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px}
+.pay-summary-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}
+.pay-summary-row:last-child{border-bottom:none;padding-top:8px;margin-top:2px}
+.pay-summary-row span{font-size:.8rem;font-family:var(--mono);color:var(--text2)}
+.pay-summary-row strong{font-size:.8rem;font-family:var(--mono);color:var(--text)}
+.pay-summary-row.total span{color:var(--text);font-weight:700}
+.pay-summary-row.total strong{color:var(--accent);font-size:.9rem}
+.pay-total-check{text-align:right;font-size:.72rem;font-family:var(--mono);margin-top:6px}
+.pay-total-check.ok{color:var(--green)}
+.pay-total-check.bad{color:var(--red)}
 
-/* ═══════════════════════════════════════════
-   SEARCH BAR
-═══════════════════════════════════════════ */
-.search-wrap {
-  position: relative;
-  margin-bottom: 14px;
-}
-.search-wrap svg {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  color: var(--text3);
-}
-.search-input {
-  width: 100%;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  color: var(--text);
-  padding: 10px 12px 10px 38px;
-  font-size: 0.9rem;
-  outline: none;
-  transition: border-color 0.2s;
-}
-.search-input:focus { border-color: var(--border2); }
-.search-input::placeholder { color: var(--text3); }
+/* ── TOAST ── */
+#toast{position:fixed;bottom:calc(72px + var(--safe-b) + 12px);left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--border2);border-radius:20px;padding:10px 20px;font-size:.82rem;font-family:var(--mono);color:var(--text);opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;z-index:100;max-width:calc(100vw - 40px)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.success{border-color:var(--green);color:var(--green)}
+#toast.error{border-color:var(--red);color:var(--red)}
 
-/* ═══════════════════════════════════════════
-   FORMS
-═══════════════════════════════════════════ */
-.form-group { margin-bottom: 14px; }
-.form-label {
-  display: block;
-  font-size: 0.68rem;
-  font-family: var(--mono);
-  color: var(--text2);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-bottom: 6px;
-}
-.form-input, .form-select {
-  width: 100%;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  color: var(--text);
-  padding: 11px 14px;
-  font-size: 0.95rem;
-  font-family: var(--sans);
-  outline: none;
-  appearance: none;
-  transition: border-color 0.2s;
-}
-.form-input:focus, .form-select:focus { border-color: var(--accent); }
-.form-input::placeholder { color: var(--text3); }
+/* ── MODAL ── */
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)}
+#modal-overlay.open{display:flex}
+#modal-box{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r) var(--r) 0 0;padding:24px 20px calc(24px + var(--safe-b));width:100%;max-width:480px;max-height:80vh;overflow-y:auto;animation:slideUp .22s ease}
+@keyframes slideUp{from{transform:translateY(28px);opacity:0}}
+.modal-handle{width:36px;height:3px;background:var(--border2);border-radius:2px;margin:0 auto 20px}
+.modal-title{font-size:1.05rem;font-weight:700;margin-bottom:14px}
 
-.alloc-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-}
+/* ── EMPTY STATE ── */
+.empty{text-align:center;padding:40px 20px;color:var(--text3);font-family:var(--mono);font-size:.8rem;line-height:1.9}
+.empty .ico{font-size:2.2rem;display:block;margin-bottom:10px}
 
-/* ═══════════════════════════════════════════
-   BUTTONS
-═══════════════════════════════════════════ */
-.btn {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%;
-  padding: 14px;
-  border-radius: var(--r-sm);
-  font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  transition: all 0.18s;
-}
-.btn-primary   { background: var(--accent); color: #fff; }
-.btn-primary:active { background: var(--accent-d); transform: scale(0.98); }
-.btn-success   { background: var(--green); color: #020a14; }
-.btn-success:active { filter: brightness(0.88); transform: scale(0.98); }
-.btn-ghost     { background: var(--panel2); border: 1px solid var(--border2); color: var(--text2); }
-.btn-ghost:active { background: var(--border); }
-.btn-danger    { background: rgba(255,77,109,0.15); border: 1px solid var(--red); color: var(--red); }
-.btn + .btn    { margin-top: 10px; }
-
-/* ═══════════════════════════════════════════
-   ALLOCATION PREVIEW
-═══════════════════════════════════════════ */
-.alloc-preview {
-  background: var(--panel2);
-  border: 1px solid var(--border2);
-  border-radius: var(--r-sm);
-  padding: 14px;
-  margin: 14px 0;
-}
-.alloc-preview-title {
-  font-size: 0.65rem;
-  font-family: var(--mono);
-  color: var(--text3);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-bottom: 10px;
-}
-.alloc-bar-wrap { margin-bottom: 8px; }
-.alloc-bar-label { display: flex; justify-content: space-between; margin-bottom: 4px; }
-.alloc-bar-label span { font-size: 0.72rem; font-family: var(--mono); color: var(--text2); }
-.alloc-bar-label strong { font-size: 0.72rem; font-family: var(--mono); color: var(--text); }
-.alloc-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
-.alloc-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s ease; }
-.alloc-bar-fill.interest { background: var(--yellow); }
-.alloc-bar-fill.penalty  { background: var(--red); }
-.alloc-bar-fill.principal{ background: var(--green); }
-
-.alloc-remaining { display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 6px; }
-.alloc-remaining span { font-size: 0.72rem; color: var(--text3); font-family: var(--mono); }
-.alloc-remaining strong { font-family: var(--mono); font-size: 0.85rem; }
-.alloc-remaining strong.ok  { color: var(--green); }
-.alloc-remaining strong.bad { color: var(--red); }
-
-/* ═══════════════════════════════════════════
-   TRANSACTION HISTORY LIST
-═══════════════════════════════════════════ */
-.txn-item {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
-}
-.txn-item:last-child { border-bottom: none; }
-.txn-icon {
-  width: 34px; height: 34px;
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  font-size: 0.9rem;
-}
-.txn-icon.loan    { background: rgba(59,143,255,0.15); }
-.txn-icon.payment { background: rgba(0,217,126,0.15); }
-.txn-info { flex: 1; }
-.txn-type  { font-size: 0.8rem; font-weight: 700; margin-bottom: 2px; }
-.txn-date  { font-size: 0.68rem; font-family: var(--mono); color: var(--text3); margin-bottom: 4px; }
-.txn-breakdown { font-size: 0.68rem; font-family: var(--mono); color: var(--text2); }
-.txn-amount { font-family: var(--mono); font-weight: 700; font-size: 0.9rem; }
-.txn-amount.loan    { color: var(--red); }
-.txn-amount.payment { color: var(--green); }
-
-/* ═══════════════════════════════════════════
-   DUES LIST
-═══════════════════════════════════════════ */
-.due-item {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 12px 14px;
-  margin-bottom: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.due-month { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; }
-.due-amounts { font-size: 0.68rem; font-family: var(--mono); color: var(--text2); margin-top: 2px; }
-.due-status {
-  font-family: var(--mono);
-  font-size: 0.62rem;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-weight: 700;
-}
-.due-status.Unpaid  { background: rgba(255,77,109,0.15);  color: var(--red); }
-.due-status.Partial { background: rgba(255,194,51,0.15);  color: var(--yellow); }
-.due-status.Paid    { background: rgba(0,217,126,0.15);   color: var(--green); }
-
-/* ═══════════════════════════════════════════
-   PROFILE HEADER
-═══════════════════════════════════════════ */
-.profile-header {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 20px;
-  margin-bottom: 14px;
-}
-.profile-name { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px; }
-.profile-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
-.profile-balance-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.pbal-item {
-  background: var(--panel2);
-  border-radius: var(--r-sm);
-  padding: 10px 12px;
-}
-.pbal-label { font-size: 0.62rem; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
-.pbal-value { font-family: var(--mono); font-weight: 700; font-size: 1rem; margin-top: 4px; }
-
-/* ═══════════════════════════════════════════
-   BACK BUTTON
-═══════════════════════════════════════════ */
-.back-btn {
-  display: flex; align-items: center; gap: 6px;
-  color: var(--accent);
-  font-size: 0.82rem;
-  font-family: var(--mono);
-  margin-bottom: 16px;
-  padding: 4px 0;
-}
-.back-btn svg { width: 16px; }
-
-/* ═══════════════════════════════════════════
-   OFFLINE BANNER
-═══════════════════════════════════════════ */
-#offline-banner {
-  background: rgba(255,194,51,0.1);
-  border-bottom: 1px solid rgba(255,194,51,0.3);
-  color: var(--yellow);
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  text-align: center;
-  padding: 6px;
-  display: none;
-  letter-spacing: 0.05em;
-}
-#offline-banner.visible { display: block; }
-
-/* ═══════════════════════════════════════════
-   TOAST
-═══════════════════════════════════════════ */
-#toast {
-  position: fixed;
-  bottom: calc(72px + var(--safe-b) + 12px);
-  left: 50%;
-  transform: translateX(-50%) translateY(20px);
-  background: var(--panel2);
-  border: 1px solid var(--border2);
-  border-radius: 20px;
-  padding: 10px 20px;
-  font-size: 0.82rem;
-  font-family: var(--mono);
-  color: var(--text);
-  opacity: 0;
-  transition: all 0.25s;
-  pointer-events: none;
-  white-space: nowrap;
-  z-index: 100;
-  max-width: calc(100vw - 40px);
-}
-#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-#toast.success { border-color: var(--green); color: var(--green); }
-#toast.error   { border-color: var(--red);   color: var(--red); }
-
-/* ═══════════════════════════════════════════
-   MODAL (for queue preview, confirmations)
-═══════════════════════════════════════════ */
-#modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.7);
-  z-index: 200;
-  display: none;
-  align-items: flex-end;
-  justify-content: center;
-  backdrop-filter: blur(4px);
-}
-#modal-overlay.open { display: flex; }
-#modal-box {
-  background: var(--panel);
-  border: 1px solid var(--border2);
-  border-radius: var(--r) var(--r) 0 0;
-  padding: 24px 20px calc(24px + var(--safe-b));
-  width: 100%;
-  max-width: 480px;
-  max-height: 75vh;
-  overflow-y: auto;
-  animation: slideUp 0.25s ease;
-}
-@keyframes slideUp { from { transform: translateY(30px); opacity: 0; } }
-.modal-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
-.modal-handle { width: 36px; height: 3px; background: var(--border2); border-radius: 2px; margin: 0 auto 20px; }
-
-/* ═══════════════════════════════════════════
-   EMPTY STATE
-═══════════════════════════════════════════ */
-.empty-state {
-  text-align: center;
-  padding: 48px 20px;
-  color: var(--text3);
-  font-family: var(--mono);
-  font-size: 0.82rem;
-  line-height: 1.8;
-}
-.empty-state .emoji { font-size: 2.5rem; display: block; margin-bottom: 12px; }
-
-/* ═══════════════════════════════════════════
-   QUEUE BADGE
-═══════════════════════════════════════════ */
-.queue-badge {
-  position: absolute;
-  top: -4px; right: -4px;
-  background: var(--yellow);
-  color: var(--bg);
-  font-size: 0.55rem;
-  font-family: var(--mono);
-  font-weight: 700;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0 4px;
-}
-
-.priority-hint {
-  background: var(--panel2);
-  border-radius: var(--r-sm);
-  padding: 10px 14px;
-  margin-bottom: 14px;
-  font-size: 0.75rem;
-  font-family: var(--mono);
-  color: var(--text2);
-  line-height: 1.7;
-}
-.priority-hint strong { color: var(--accent); }
-
-/* scroll refinement */
-.screen::-webkit-scrollbar { width: 0; }
+/* ── INFO BOX ── */
+.info-box{background:rgba(59,143,255,.08);border:1px solid rgba(59,143,255,.2);border-radius:var(--r-sm);padding:10px 14px;font-size:.8rem;color:#93c5fd;font-family:var(--mono);line-height:1.6;margin-bottom:14px}
+.warn-box{background:rgba(255,194,51,.08);border:1px solid rgba(255,194,51,.2);border-radius:var(--r-sm);padding:10px 14px;font-size:.8rem;color:var(--yellow);font-family:var(--mono);line-height:1.6;margin-bottom:14px}
 </style>
 </head>
-
 <body>
 <div id="app">
 
-  <!-- OFFLINE BANNER -->
-  <div id="offline-banner">⚠ OFFLINE — payments will sync when connected</div>
+<!-- OFFLINE BANNER -->
+<div id="offline-banner">⚠ OFFLINE — entries will sync when connected</div>
 
-  <!-- TOP BAR -->
-  <div id="topbar">
-    <div class="topbar-logo">LOAN<span>BOOK</span></div>
-    <div class="topbar-actions">
-      <button class="sync-btn" id="sync-btn" onclick="syncData()">
-        <div class="dot"></div>
-        <span id="sync-label">SYNC</span>
-      </button>
+<!-- TOPBAR -->
+<div id="topbar">
+  <div class="topbar-logo">LOAN<span>BOOK</span></div>
+  <button class="sync-btn" id="sync-btn" onclick="syncData()">
+    <div class="dot"></div>
+    <span id="sync-label">SYNC</span>
+  </button>
+</div>
+
+<!-- SCREENS -->
+<div id="screens">
+
+  <!-- ══════════════════════════════════════
+       DASHBOARD
+  ══════════════════════════════════════ -->
+  <div class="screen active" id="screen-dashboard">
+
+    <!-- Summary stats -->
+    <div class="section-label">Portfolio Summary</div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-lbl">Active Borrowers</div>
+        <div class="stat-val" id="stat-borrowers" style="color:var(--accent)">—</div>
+        <div class="stat-sub" id="stat-overdue-count"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Total Principal Out</div>
+        <div class="stat-val" id="stat-principal">—</div>
+        <div class="stat-sub">money lent</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Interest Uncollected</div>
+        <div class="stat-val" id="stat-interest" style="color:var(--yellow)">—</div>
+        <div class="stat-sub">across all borrowers</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Penalties Uncollected</div>
+        <div class="stat-val" id="stat-penalty" style="color:var(--red)">—</div>
+        <div class="stat-sub">for missed payments</div>
+      </div>
     </div>
+
+    <!-- Needs attention (overdue) -->
+    <div class="section-label" id="attn-label">Needs Attention</div>
+    <div id="overdue-list"></div>
+
+    <!-- Search + all borrowers -->
+    <div class="section-label">All Borrowers</div>
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input class="search-input" id="search-input" placeholder="Search by name…" oninput="filterBorrowers(this.value)">
+    </div>
+    <div id="borrower-list"></div>
   </div>
 
-  <!-- SCREENS -->
-  <div id="screens">
-
-    <!-- ── DASHBOARD ── -->
-    <div class="screen active" id="screen-dashboard">
-      <div class="section-title">Overview</div>
-      <div class="stats-grid" id="stats-grid">
-        <div class="stat-card">
-          <div class="stat-label">Borrowers</div>
-          <div class="stat-value" id="stat-borrowers">—</div>
-          <div class="stat-sub" id="stat-borrowers-sub">active accounts</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Total Out</div>
-          <div class="stat-value" id="stat-principal" style="color:var(--accent)">—</div>
-          <div class="stat-sub">principal lent</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Interest Due</div>
-          <div class="stat-value" id="stat-interest" style="color:var(--yellow)">—</div>
-          <div class="stat-sub">uncollected</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Penalties</div>
-          <div class="stat-value" id="stat-penalty" style="color:var(--red)">—</div>
-          <div class="stat-sub">uncollected</div>
-        </div>
-      </div>
-
-      <div class="section-title">Due Today / Overdue</div>
-      <div id="due-today-list"></div>
-
-      <div class="section-title">All Borrowers</div>
-      <div class="search-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input class="search-input" id="search-input" placeholder="Search borrower..." oninput="filterBorrowers(this.value)">
-      </div>
-      <div id="borrower-list"></div>
-    </div>
-
-    <!-- ── BORROWER PROFILE ── -->
-    <div class="screen" id="screen-profile">
-      <button class="back-btn" onclick="goBack()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-        All Borrowers
-      </button>
-      <div class="profile-header" id="profile-header"></div>
-      <div class="section-title">Actions</div>
-      <button class="btn btn-success" onclick="openPaymentForm()">+ Record Payment</button>
-      <button class="btn btn-primary" onclick="openLoanForm()" style="margin-top:10px">+ New Loan</button>
-      <div class="section-title">Monthly Dues</div>
-      <div id="dues-list"></div>
-      <div class="section-title">Transaction History</div>
-      <div class="card" id="txn-list" style="padding:4px 16px"></div>
-    </div>
-
-    <!-- ── PAYMENT FORM ── -->
-    <div class="screen" id="screen-payment">
-      <button class="back-btn" onclick="goToProfile()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-        <span id="payment-back-label">Back</span>
-      </button>
-      <div class="page-title">Record Payment</div>
-      <div class="page-sub" id="payment-borrower-name"></div>
-
-      <div class="priority-hint">
-        Priority: <strong>Interest first</strong> → <strong>Penalty</strong> → <strong>Principal</strong><br>
-        Adjust allocations below if needed.
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Total Amount Collected (₱)</label>
-        <input class="form-input" type="number" id="pay-total" placeholder="0.00" step="0.01" oninput="autoAllocate()">
-      </div>
-
-      <div class="alloc-preview" id="alloc-preview">
-        <div class="alloc-preview-title">Auto Allocation Preview</div>
-        <div class="alloc-bar-wrap">
-          <div class="alloc-bar-label"><span>Interest</span><strong id="prev-interest">₱0.00</strong></div>
-          <div class="alloc-bar"><div class="alloc-bar-fill interest" id="bar-interest" style="width:0%"></div></div>
-        </div>
-        <div class="alloc-bar-wrap">
-          <div class="alloc-bar-label"><span>Penalty</span><strong id="prev-penalty">₱0.00</strong></div>
-          <div class="alloc-bar"><div class="alloc-bar-fill penalty" id="bar-penalty" style="width:0%"></div></div>
-        </div>
-        <div class="alloc-bar-wrap">
-          <div class="alloc-bar-label"><span>Principal</span><strong id="prev-principal">₱0.00</strong></div>
-          <div class="alloc-bar"><div class="alloc-bar-fill principal" id="bar-principal" style="width:0%"></div></div>
-        </div>
-        <div class="alloc-remaining">
-          <span>Remaining / Overage</span>
-          <strong id="alloc-remaining-val" class="ok">₱0.00</strong>
-        </div>
-      </div>
-
-      <div class="section-title">Manual Override</div>
-      <div class="alloc-row">
-        <div class="form-group">
-          <label class="form-label" style="color:var(--yellow)">Interest ₱</label>
-          <input class="form-input" type="number" id="pay-interest" placeholder="0.00" step="0.01" oninput="updateRemaining()">
-        </div>
-        <div class="form-group">
-          <label class="form-label" style="color:var(--red)">Penalty ₱</label>
-          <input class="form-input" type="number" id="pay-penalty" placeholder="0.00" step="0.01" oninput="updateRemaining()">
-        </div>
-        <div class="form-group">
-          <label class="form-label" style="color:var(--green)">Principal ₱</label>
-          <input class="form-input" type="number" id="pay-principal" placeholder="0.00" step="0.01" oninput="updateRemaining()">
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Notes (optional)</label>
-        <input class="form-input" type="text" id="pay-notes" placeholder="e.g. Oct 15 collection">
-      </div>
-
-      <button class="btn btn-success" onclick="submitPayment()">💾 Save Payment</button>
-      <button class="btn btn-ghost" onclick="goToProfile()" style="margin-top:10px">Cancel</button>
-    </div>
-
-    <!-- ── LOAN FORM ── -->
-    <div class="screen" id="screen-loan">
-      <button class="back-btn" onclick="goToProfile()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-        <span id="loan-back-label">Back</span>
-      </button>
-      <div class="page-title">New Loan</div>
-      <div class="page-sub" id="loan-borrower-name"></div>
-
-      <div class="form-group">
-        <label class="form-label">Loan Amount (₱)</label>
-        <input class="form-input" type="number" id="loan-amount" placeholder="0.00" step="0.01">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Notes (optional)</label>
-        <input class="form-input" type="text" id="loan-notes" placeholder="e.g. Re-loan, October">
-      </div>
-      <div class="card" style="margin-bottom:14px">
-        <div class="stat-label">⚠️ Effectivity Rule</div>
-        <p style="font-size:0.8rem;color:var(--text2);margin-top:6px;line-height:1.6;">This loan amount will be added to the principal. Interest will only be calculated from the <strong>next billing cycle</strong> onwards.</p>
-      </div>
-      <button class="btn btn-primary" onclick="submitLoan()">💾 Record Loan</button>
-      <button class="btn btn-ghost" onclick="goToProfile()" style="margin-top:10px">Cancel</button>
-    </div>
-
-    <!-- ── ADD BORROWER ── -->
-    <div class="screen" id="screen-add-borrower">
-      <div class="page-title">New Borrower</div>
-      <div class="page-sub">Add a borrower to your ledger</div>
-
-      <div class="form-group">
-        <label class="form-label">Full Name</label>
-        <input class="form-input" type="text" id="new-name" placeholder="e.g. Juan dela Cruz">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Reference Due Date (day of month)</label>
-        <input class="form-input" type="number" id="new-due" placeholder="e.g. 15" min="1" max="31">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Initial Credit Grade</label>
-        <select class="form-select" id="new-grade">
-          <option value="Good">Good</option>
-          <option value="Excellent">Excellent</option>
-          <option value="Fair">Fair</option>
-          <option value="Risky">Risky</option>
-          <option value="Dangerous">Dangerous</option>
-        </select>
-      </div>
-      <button class="btn btn-primary" onclick="submitNewBorrower()">+ Add Borrower</button>
-    </div>
-
-    <!-- ── SYNC QUEUE ── -->
-    <div class="screen" id="screen-queue">
-      <div class="page-title">Sync Queue</div>
-      <div class="page-sub">Offline entries waiting to sync</div>
-      <div id="queue-list"></div>
-      <button class="btn btn-primary" onclick="syncData()" style="margin-top:10px">↑ Sync Now</button>
-    </div>
-
-  </div><!-- /screens -->
-
-  <!-- BOTTOM NAV -->
-  <nav id="bottomnav">
-    <button class="nav-btn active" data-screen="dashboard" onclick="navigate('dashboard', this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-      Dashboard
+  <!-- ══════════════════════════════════════
+       BORROWER PROFILE
+  ══════════════════════════════════════ -->
+  <div class="screen" id="screen-profile">
+    <button class="back-btn" onclick="goBack()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      All Borrowers
     </button>
-    <button class="nav-btn" data-screen="add-borrower" onclick="navigate('add-borrower', this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/><path d="M12 14v7m3.5-3.5L12 21l-3.5-3.5"/></svg>
-      Add
+
+    <div class="profile-header" id="profile-header"></div>
+
+    <!-- Quick action buttons -->
+    <div class="section-label">What do you want to do?</div>
+    <div class="action-grid">
+      <button class="action-btn green" onclick="openPaymentForm()">
+        <span class="ico">💳</span>Record Payment
+      </button>
+      <button class="action-btn blue" onclick="openLoanForm()">
+        <span class="ico">💰</span>New Loan
+      </button>
+    </div>
+
+    <!-- Monthly dues -->
+    <div class="section-label">Monthly Dues</div>
+    <div id="dues-list"></div>
+
+    <!-- Transaction history -->
+    <div class="section-label">Transaction History</div>
+    <div class="txn-list-wrap" id="txn-list"></div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       PAYMENT FORM  (manual entry only)
+  ══════════════════════════════════════ -->
+  <div class="screen" id="screen-payment">
+    <button class="back-btn" onclick="goToProfile()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Back to Profile
     </button>
-    <button class="nav-btn" data-screen="queue" onclick="navigate('queue', this)" style="position:relative">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 6v6l4 2"/></svg>
-      <div class="queue-badge" id="queue-badge" style="display:none">0</div>
-      Queue
+    <div class="page-title">Record Payment</div>
+    <div class="page-sub" id="payment-borrower-name"></div>
+
+    <!-- What they currently owe -->
+    <div class="pay-summary" id="pay-owe-summary">
+      <div class="pay-summary-title">Current Balance Owed</div>
+      <div class="pay-summary-row">
+        <span>Interest Due</span><strong id="owe-interest" style="color:var(--yellow)">₱0.00</strong>
+      </div>
+      <div class="pay-summary-row">
+        <span>Penalty Due</span><strong id="owe-penalty" style="color:var(--red)">₱0.00</strong>
+      </div>
+      <div class="pay-summary-row">
+        <span>Principal Balance</span><strong id="owe-principal">₱0.00</strong>
+      </div>
+      <div class="pay-summary-row total">
+        <span>Total Outstanding</span><strong id="owe-total">₱0.00</strong>
+      </div>
+    </div>
+
+    <div class="info-box">
+      Enter exactly how much you collected for each category.<br>
+      Priority rule: Interest first → Penalty → Principal.
+    </div>
+
+    <!-- Manual fields only — no auto-allocation -->
+    <div class="form-group">
+      <label class="form-label" style="color:var(--yellow)">💰 Amount for Interest (₱)</label>
+      <input class="form-input" type="number" id="pay-interest" placeholder="0.00" step="0.01" min="0" oninput="updatePayTotal()">
+    </div>
+    <div class="form-group">
+      <label class="form-label" style="color:var(--red)">⚠️ Amount for Penalty (₱)</label>
+      <input class="form-input" type="number" id="pay-penalty" placeholder="0.00" step="0.01" min="0" oninput="updatePayTotal()">
+    </div>
+    <div class="form-group">
+      <label class="form-label" style="color:var(--green)">🏦 Amount for Principal (₱)</label>
+      <input class="form-input" type="number" id="pay-principal" placeholder="0.00" step="0.01" min="0" oninput="updatePayTotal()">
+    </div>
+
+    <!-- Live running total -->
+    <div class="pay-summary" style="margin-bottom:14px">
+      <div class="pay-summary-title">Payment Breakdown</div>
+      <div class="pay-summary-row">
+        <span>Interest</span><strong id="ptot-interest" style="color:var(--yellow)">₱0.00</strong>
+      </div>
+      <div class="pay-summary-row">
+        <span>Penalty</span><strong id="ptot-penalty" style="color:var(--red)">₱0.00</strong>
+      </div>
+      <div class="pay-summary-row">
+        <span>Principal</span><strong id="ptot-principal" style="color:var(--green)">₱0.00</strong>
+      </div>
+      <div class="pay-summary-row total">
+        <span>Total Payment</span><strong id="ptot-total">₱0.00</strong>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <input class="form-input" type="text" id="pay-notes" placeholder="e.g. Oct 15 collection">
+    </div>
+
+    <button class="btn btn-success" id="save-payment-btn" onclick="submitPayment()">💾 Save Payment</button>
+    <button class="btn btn-ghost" onclick="goToProfile()">Cancel</button>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       LOAN FORM
+  ══════════════════════════════════════ -->
+  <div class="screen" id="screen-loan">
+    <button class="back-btn" onclick="goToProfile()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Back to Profile
     </button>
-  </nav>
+    <div class="page-title">New Loan</div>
+    <div class="page-sub" id="loan-borrower-name"></div>
+
+    <div class="warn-box">
+      ⚠️ Interest on this loan only starts from the <strong>next billing cycle</strong>.
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Loan Amount (₱)</label>
+      <input class="form-input" type="number" id="loan-amount" placeholder="0.00" step="0.01" min="0">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <input class="form-input" type="text" id="loan-notes" placeholder="e.g. Re-loan October">
+    </div>
+    <button class="btn btn-primary" id="save-loan-btn" onclick="submitLoan()">💾 Record Loan</button>
+    <button class="btn btn-ghost" onclick="goToProfile()">Cancel</button>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       ADD BORROWER
+  ══════════════════════════════════════ -->
+  <div class="screen" id="screen-add-borrower">
+    <div class="page-title">Add New Borrower</div>
+    <div class="page-sub">Fill in the borrower's details below</div>
+
+    <div class="form-group">
+      <label class="form-label">👤 Full Name</label>
+      <input class="form-input" type="text" id="new-name" placeholder="e.g. Juan dela Cruz">
+    </div>
+    <div class="form-group">
+      <label class="form-label">📅 Due Date (day of month, 1–31)</label>
+      <input class="form-input" type="number" id="new-due" placeholder="e.g. 15 means every 15th of the month" min="1" max="31">
+    </div>
+    <div class="form-group">
+      <label class="form-label">⭐ Starting Credit Grade</label>
+      <select class="form-select" id="new-grade">
+        <option value="Good">Good</option>
+        <option value="Excellent">Excellent</option>
+        <option value="Fair">Fair</option>
+        <option value="Risky">Risky</option>
+        <option value="Dangerous">Dangerous</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" id="save-borrower-btn" onclick="submitNewBorrower()">+ Add Borrower</button>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SYNC QUEUE
+  ══════════════════════════════════════ -->
+  <div class="screen" id="screen-queue">
+    <div class="page-title">Sync Queue</div>
+    <div class="page-sub">Offline entries waiting to upload</div>
+    <div id="queue-list"></div>
+    <button class="btn btn-primary" onclick="syncData()">↑ Sync Now</button>
+  </div>
+
+</div><!-- /screens -->
+
+<!-- BOTTOM NAV -->
+<nav id="bottomnav">
+  <button class="nav-btn active" data-screen="dashboard" onclick="navigate('dashboard',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Dashboard
+  </button>
+  <button class="nav-btn" data-screen="add-borrower" onclick="navigate('add-borrower',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/><path d="M12 14v7m3.5-3.5L12 21l-3.5-3.5"/></svg>
+    Add
+  </button>
+  <button class="nav-btn" data-screen="queue" onclick="navigate('queue',this)" style="position:relative">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 6v6l4 2"/></svg>
+    <div class="queue-badge" id="queue-badge">0</div>
+    Queue
+  </button>
+</nav>
 
 </div><!-- /app -->
 
-<!-- TOAST -->
 <div id="toast"></div>
 
-<!-- MODAL -->
+<!-- CONFIRM MODAL -->
 <div id="modal-overlay" onclick="closeModal()">
   <div id="modal-box" onclick="event.stopPropagation()">
     <div class="modal-handle"></div>
@@ -866,355 +495,273 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 
 <script>
 // ═══════════════════════════════════════════════════════
-//  CONFIG — PASTE YOUR WEB APP URL HERE
+//  CONFIG — paste your deployed Apps Script URL here
 // ═══════════════════════════════════════════════════════
-const API_URL = 'https://script.google.com/macros/s/AKfycbx2GIi_1AKGOYVq38STKVkAd-xCrlvPHHK2oSKkf-sqcZfucxWkz7K7nthcbIgmsv-0/exec'; // ← Replace with your deployed Apps Script URL
+const API_URL = 'https://script.google.com/macros/s/AKfycbx2GIi_1AKGOYVq38STKVkAd-xCrlvPHHK2oSKkf-sqcZfucxWkz7K7nthcbIgmsv-0/exec';
 
 // ═══════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════
-let DB = {
-  borrowers:    [],
-  monthly_dues: [],
-  transactions: [],
-  last_sync:    null,
-};
+let DB = { borrowers:[], monthly_dues:[], transactions:[], last_sync:null };
 let currentBorrowerId = null;
-let screenHistory     = ['dashboard'];
+let screenHistory = ['dashboard'];
+let isSaving = false; // global submit guard — prevents double-tap duplicates
 
 // ═══════════════════════════════════════════════════════
 //  INDEXEDDB
 // ═══════════════════════════════════════════════════════
 let idb;
 function openIDB() {
-  return new Promise((res, rej) => {
-    const req = indexedDB.open('LoanBookDB', 1);
+  return new Promise((res,rej) => {
+    const req = indexedDB.open('LoanBookDB',1);
     req.onupgradeneeded = e => {
       const db = e.target.result;
-      if (!db.objectStoreNames.contains('cache'))  db.createObjectStore('cache',  { keyPath: 'key' });
-      if (!db.objectStoreNames.contains('queue'))  db.createObjectStore('queue',  { keyPath: 'id', autoIncrement: true });
+      if (!db.objectStoreNames.contains('cache')) db.createObjectStore('cache',{keyPath:'key'});
+      if (!db.objectStoreNames.contains('queue')) db.createObjectStore('queue',{keyPath:'id',autoIncrement:true});
     };
     req.onsuccess = e => { idb = e.target.result; res(idb); };
     req.onerror   = () => rej(req.error);
   });
 }
-
-async function idbSet(key, value) {
-  const tx = idb.transaction('cache', 'readwrite');
-  tx.objectStore('cache').put({ key, value });
-  return new Promise(r => tx.oncomplete = r);
-}
-
-async function idbGet(key) {
-  return new Promise(res => {
-    const req = idb.transaction('cache').objectStore('cache').get(key);
-    req.onsuccess = () => res(req.result?.value || null);
-    req.onerror   = () => res(null);
-  });
-}
-
-async function queueAdd(item) {
-  const tx  = idb.transaction('queue', 'readwrite');
-  const req = tx.objectStore('queue').add({ ...item, queued_at: new Date().toISOString() });
-  return new Promise(r => req.onsuccess = () => r(req.result));
-}
-
-async function queueGetAll() {
-  return new Promise(res => {
-    const req = idb.transaction('queue').objectStore('queue').getAll();
-    req.onsuccess = () => res(req.result);
-  });
-}
-
-async function queueDelete(id) {
-  const tx = idb.transaction('queue', 'readwrite');
-  tx.objectStore('queue').delete(id);
-  return new Promise(r => tx.oncomplete = r);
-}
+async function idbSet(key,value){const tx=idb.transaction('cache','readwrite');tx.objectStore('cache').put({key,value});return new Promise(r=>tx.oncomplete=r)}
+async function idbGet(key){return new Promise(res=>{const req=idb.transaction('cache').objectStore('cache').get(key);req.onsuccess=()=>res(req.result?.value||null);req.onerror=()=>res(null)})}
+async function queueAdd(item){const tx=idb.transaction('queue','readwrite');const req=tx.objectStore('queue').add({...item,queued_at:new Date().toISOString()});return new Promise(r=>req.onsuccess=()=>r(req.result))}
+async function queueGetAll(){return new Promise(res=>{const req=idb.transaction('queue').objectStore('queue').getAll();req.onsuccess=()=>res(req.result)})}
+async function queueDelete(id){const tx=idb.transaction('queue','readwrite');tx.objectStore('queue').delete(id);return new Promise(r=>tx.oncomplete=r)}
 
 // ═══════════════════════════════════════════════════════
-//  NETWORK STATUS
+//  NETWORK
 // ═══════════════════════════════════════════════════════
-function isOnline() { return navigator.onLine; }
-
-function updateNetworkUI() {
-  const banner = document.getElementById('offline-banner');
-  const btn    = document.getElementById('sync-btn');
-  if (isOnline()) {
-    banner.classList.remove('visible');
-    btn.classList.add('online');
-  } else {
-    banner.classList.add('visible');
-    btn.classList.remove('online');
-  }
+function isOnline(){return navigator.onLine}
+function updateNetworkUI(){
+  const btn=document.getElementById('sync-btn');
+  if(isOnline()){document.getElementById('offline-banner').classList.remove('visible');btn.classList.add('online')}
+  else{document.getElementById('offline-banner').classList.add('visible');btn.classList.remove('online')}
   updateQueueBadge();
 }
-
-window.addEventListener('online',  () => { updateNetworkUI(); syncData(); });
-window.addEventListener('offline', updateNetworkUI);
+window.addEventListener('online',()=>{updateNetworkUI();syncData()});
+window.addEventListener('offline',updateNetworkUI);
 
 // ═══════════════════════════════════════════════════════
 //  SYNC
 // ═══════════════════════════════════════════════════════
-async function syncData() {
-  if (!isOnline()) { showToast('Offline — cannot sync', 'error'); return; }
-
-  const btn   = document.getElementById('sync-btn');
-  const label = document.getElementById('sync-label');
-  btn.classList.add('syncing');
-  label.textContent = 'SYNCING';
-
-  // First flush the queue
+async function syncData(){
+  if(!isOnline()){showToast('Offline — cannot sync','error');return}
+  const btn=document.getElementById('sync-btn');
+  const lbl=document.getElementById('sync-label');
+  btn.classList.add('syncing'); lbl.textContent='SYNCING';
   await flushQueue();
-
-  try {
-    const resp = await fetch(API_URL + '?action=sync');
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-
+  try{
+    const resp=await fetch(API_URL+'?action=sync');
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    if(data.error) throw new Error(data.error);
     DB.borrowers    = data.borrowers    || [];
     DB.monthly_dues = data.monthly_dues || [];
     DB.transactions = data.transactions || [];
     DB.last_sync    = new Date().toISOString();
-
-    await idbSet('DB', DB);
+    await idbSet('DB',DB);
     renderDashboard();
-    showToast('Synced ✓', 'success');
-  } catch (err) {
-    showToast('Sync failed: ' + err.message, 'error');
-  }
-
+    showToast('Synced ✓','success');
+  }catch(err){showToast('Sync failed: '+err.message,'error')}
   btn.classList.remove('syncing');
   btn.classList.add('online');
-  label.textContent = 'SYNC';
+  lbl.textContent='SYNC';
 }
 
-async function flushQueue() {
-  const items = await queueGetAll();
-  for (const item of items) {
-    try {
-      const resp = await fetch(API_URL, {
-        method: 'POST',
-        body:   JSON.stringify(item.payload),
-      });
-      const data = await resp.json();
-      if (!data.error) await queueDelete(item.id);
-    } catch (_) { break; } // stop if offline
+async function flushQueue(){
+  const items=await queueGetAll();
+  for(const item of items){
+    try{
+      const resp=await fetch(API_URL,{method:'POST',body:JSON.stringify(item.payload)});
+      const data=await resp.json();
+      if(!data.error) await queueDelete(item.id);
+    }catch(_){break}
   }
   updateQueueBadge();
 }
 
-async function apiPost(payload) {
-  if (isOnline()) {
-    try {
-      const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
-      const data = await resp.json();
-      if (data.error) throw new Error(data.error);
+async function apiPost(payload){
+  if(isOnline()){
+    try{
+      const resp=await fetch(API_URL,{method:'POST',body:JSON.stringify(payload)});
+      const data=await resp.json();
+      if(data.error) throw new Error(data.error);
       return data;
-    } catch (err) {
-      // Fall through to queue
-    }
+    }catch(err){throw err}
   }
-  // Offline or error → queue it
-  await queueAdd({ payload });
+  await queueAdd({payload});
   updateQueueBadge();
-  return { status: 'queued', message: 'Saved offline. Will sync when connected.' };
+  return {status:'queued',message:'Saved offline. Will sync when connected.'};
 }
 
-async function updateQueueBadge() {
-  const items  = await queueGetAll();
-  const badge  = document.getElementById('queue-badge');
-  if (items.length > 0) {
-    badge.style.display = 'flex';
-    badge.textContent   = items.length;
-  } else {
-    badge.style.display = 'none';
-  }
+async function updateQueueBadge(){
+  const items=await queueGetAll();
+  const badge=document.getElementById('queue-badge');
+  if(items.length>0){badge.style.display='flex';badge.textContent=items.length}
+  else{badge.style.display='none'}
 }
 
 // ═══════════════════════════════════════════════════════
 //  NAVIGATION
 // ═══════════════════════════════════════════════════════
-function navigate(screenName, btn) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('screen-' + screenName).classList.add('active');
-  if (btn) btn.classList.add('active');
-  screenHistory = [screenName];
-
-  if (screenName === 'queue') renderQueue();
-  if (screenName === 'add-borrower') clearAddBorrowerForm();
+function navigate(name,btn){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  screenHistory=[name];
+  if(name==='queue') renderQueue();
+  if(name==='add-borrower') clearAddForm();
 }
-
-function goToScreen(screenName) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-' + screenName).classList.add('active');
-  screenHistory.push(screenName);
+function goToScreen(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  screenHistory.push(name);
 }
-
-function goBack() {
+function goBack(){
   screenHistory.pop();
-  const prev = screenHistory[screenHistory.length - 1] || 'dashboard';
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-' + prev).classList.add('active');
-  if (prev === 'dashboard') {
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const prev=screenHistory[screenHistory.length-1]||'dashboard';
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+prev).classList.add('active');
+  if(prev==='dashboard'){
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
     document.querySelector('[data-screen="dashboard"]').classList.add('active');
   }
 }
-
-function goToProfile() { goToScreen('profile'); }
+function goToProfile(){goToScreen('profile')}
 
 // ═══════════════════════════════════════════════════════
-//  DASHBOARD RENDERING
+//  DASHBOARD
 // ═══════════════════════════════════════════════════════
-function renderDashboard() {
-  const active = DB.borrowers.filter(b => b.Status === 'Active');
-  let totalPrincipal = 0, totalInterest = 0, totalPenalty = 0;
-  active.forEach(b => {
-    totalPrincipal += Number(b.principal_balance  || 0);
-    totalInterest  += Number(b.total_interest_due || 0);
-    totalPenalty   += Number(b.total_penalty_due  || 0);
+function renderDashboard(){
+  const active=DB.borrowers.filter(b=>b.Status==='Active');
+  let totP=0,totI=0,totPen=0;
+  active.forEach(b=>{
+    totP   +=Number(b.principal_balance  ||0);
+    totI   +=Number(b.total_interest_due ||0);
+    totPen +=Number(b.total_penalty_due  ||0);
   });
 
-  document.getElementById('stat-borrowers').textContent    = active.length;
-  document.getElementById('stat-principal').textContent    = fmt(totalPrincipal);
-  document.getElementById('stat-interest').textContent     = fmt(totalInterest);
-  document.getElementById('stat-penalty').textContent      = fmt(totalPenalty);
+  document.getElementById('stat-borrowers').textContent=active.length;
+  document.getElementById('stat-principal').textContent=fmt(totP);
+  document.getElementById('stat-interest').textContent=fmt(totI);
+  document.getElementById('stat-penalty').textContent=fmt(totPen);
 
-  const today = new Date().getDate();
-
-  // Due today / overdue
-  const dueTodayEl = document.getElementById('due-today-list');
-  const overdue = active.filter(b => {
-    const refDay = Number(b.Ref_Due_Date);
-    const hasDue = DB.monthly_dues.some(d =>
-      d.Borrower_ID === b.Borrower_ID && d.Status !== 'Paid'
-    );
-    return hasDue;
-  });
-  if (overdue.length === 0) {
-    dueTodayEl.innerHTML = '<div class="empty-state"><span class="emoji">✅</span>No overdue borrowers</div>';
+  // Overdue = active borrowers with any unpaid dues
+  const overdue=active.filter(b=>
+    DB.monthly_dues.some(d=>d.Borrower_ID===b.Borrower_ID && d.Status!=='Paid')
+  );
+  const overdueEl=document.getElementById('overdue-list');
+  const attnLbl=document.getElementById('attn-label');
+  attnLbl.textContent='Needs Attention';
+  if(overdue.length>0){
+    document.getElementById('stat-overdue-count').textContent=overdue.length+' with unpaid dues';
+    overdueEl.innerHTML=overdue.map(b=>borrowerCardHTML(b)).join('');
   } else {
-    dueTodayEl.innerHTML = overdue.slice(0, 5).map(b => borrowerCardHTML(b, true)).join('');
+    document.getElementById('stat-overdue-count').textContent='all clear';
+    overdueEl.innerHTML='<div class="empty"><span class="ico">✅</span>No overdue borrowers right now.</div>';
   }
 
-  // All borrowers list
   renderBorrowerList(DB.borrowers);
 }
 
-function renderBorrowerList(list) {
-  const el = document.getElementById('borrower-list');
-  if (list.length === 0) {
-    el.innerHTML = '<div class="empty-state"><span class="emoji">📋</span>No borrowers yet.<br>Tap Add to get started.</div>';
+function renderBorrowerList(list){
+  const el=document.getElementById('borrower-list');
+  if(!list.length){
+    el.innerHTML='<div class="empty"><span class="ico">📋</span>No borrowers yet.<br>Tap Add below to get started.</div>';
     return;
   }
-  el.innerHTML = list.map(b => borrowerCardHTML(b)).join('');
+  // Sort: overdue first, then by name
+  const sorted=[...list].sort((a,b)=>{
+    const aOver=DB.monthly_dues.some(d=>d.Borrower_ID===a.Borrower_ID&&d.Status!=='Paid');
+    const bOver=DB.monthly_dues.some(d=>d.Borrower_ID===b.Borrower_ID&&d.Status!=='Paid');
+    if(aOver&&!bOver) return -1;
+    if(!aOver&&bOver) return 1;
+    return a.Full_Name.localeCompare(b.Full_Name);
+  });
+  el.innerHTML=sorted.map(b=>borrowerCardHTML(b)).join('');
 }
 
-function borrowerCardHTML(b, compact) {
-  const unpaidDues = DB.monthly_dues.filter(
-    d => d.Borrower_ID === b.Borrower_ID && d.Status !== 'Paid'
-  );
-  const indicatorClass = b.Status === 'Closed' ? 'closed' : (unpaidDues.length > 0 ? 'overdue' : 'ok');
-  const principal  = Number(b.principal_balance  || 0);
-  const interest   = Number(b.total_interest_due || 0);
-  const penalty    = Number(b.total_penalty_due  || 0);
-  const total      = principal + interest + penalty;
+function borrowerCardHTML(b){
+  const unpaid=DB.monthly_dues.filter(d=>d.Borrower_ID===b.Borrower_ID&&d.Status!=='Paid');
+  const isOverdue=unpaid.length>0;
+  const barClass=b.Status==='Closed'?'closed':isOverdue?'overdue':'ok';
+  const principal=Number(b.principal_balance  ||0);
+  const interest =Number(b.total_interest_due ||0);
+  const penalty  =Number(b.total_penalty_due  ||0);
+  const total    =principal+interest+penalty;
+  const dueDayStr=b.Ref_Due_Date?'Due every '+b.Ref_Due_Date+(b.Ref_Due_Date==1?'st':b.Ref_Due_Date==2?'nd':b.Ref_Due_Date==3?'rd':'th'):'';
 
   return `
-    <div class="card borrower-card" onclick="openProfile('${b.Borrower_ID}')">
-      <div class="due-indicator ${indicatorClass}"></div>
-      <div style="padding-left:8px">
-        <div class="card-row">
-          <div class="borrower-name">${b.Full_Name}</div>
-          <span class="grade grade-${b.Credit_Grade}">${b.Credit_Grade}</span>
-        </div>
-        <div class="borrower-meta">
-          <span class="meta-tag">Due: ${b.Ref_Due_Date}th</span>
-          <span class="meta-tag">${b.Status}</span>
-          ${unpaidDues.length > 0 ? `<span class="meta-tag" style="color:var(--red)">${unpaidDues.length} unpaid</span>` : ''}
-        </div>
-        <div class="balance-strip">
-          <div class="bal-item">
-            <div class="bal-label">Principal</div>
-            <div class="bal-value principal">${fmt(principal)}</div>
-          </div>
-          <div class="bal-item">
-            <div class="bal-label">Interest</div>
-            <div class="bal-value interest">${fmt(interest)}</div>
-          </div>
-          <div class="bal-item">
-            <div class="bal-label">Total Due</div>
-            <div class="bal-value total">${fmt(total)}</div>
-          </div>
-        </div>
+  <div class="card borrower-card" onclick="openProfile('${b.Borrower_ID}')">
+    <div class="bcard-bar ${barClass}"></div>
+    <div class="bcard-top">
+      <div>
+        <div class="bcard-name">${b.Full_Name}</div>
       </div>
-    </div>`;
+      <span class="grade grade-${b.Credit_Grade}">${b.Credit_Grade}</span>
+    </div>
+    <div class="bcard-meta">
+      <span class="meta-tag">${b.Status}</span>
+      ${dueDayStr?`<span class="meta-tag">${dueDayStr}</span>`:''}
+      ${isOverdue?`<span class="meta-tag red">⚠ ${unpaid.length} unpaid</span>`:'<span class="meta-tag green">✓ Up to date</span>'}
+    </div>
+    <div class="bal-strip">
+      <div class="bal-item"><div class="bal-lbl">Principal</div><div class="bal-val c-text">${fmt(principal)}</div></div>
+      <div class="bal-item"><div class="bal-lbl">Interest</div><div class="bal-val c-yellow">${fmt(interest)}</div></div>
+      <div class="bal-item"><div class="bal-lbl">Total Due</div><div class="bal-val c-accent">${fmt(total)}</div></div>
+    </div>
+  </div>`;
 }
 
-function filterBorrowers(query) {
-  const q = query.toLowerCase();
-  const filtered = DB.borrowers.filter(b => b.Full_Name.toLowerCase().includes(q));
+function filterBorrowers(q){
+  const filtered=DB.borrowers.filter(b=>b.Full_Name.toLowerCase().includes(q.toLowerCase()));
   renderBorrowerList(filtered);
 }
 
 // ═══════════════════════════════════════════════════════
 //  PROFILE
 // ═══════════════════════════════════════════════════════
-function openProfile(borrowerId) {
-  currentBorrowerId = borrowerId;
-  const b = DB.borrowers.find(x => x.Borrower_ID === borrowerId);
-  if (!b) return;
+function openProfile(borrowerId){
+  currentBorrowerId=borrowerId;
+  const b=DB.borrowers.find(x=>x.Borrower_ID===borrowerId);
+  if(!b) return;
 
-  const principal = Number(b.principal_balance  || 0);
-  const interest  = Number(b.total_interest_due || 0);
-  const penalty   = Number(b.total_penalty_due  || 0);
-  const total     = principal + interest + penalty;
+  const principal=Number(b.principal_balance  ||0);
+  const interest =Number(b.total_interest_due ||0);
+  const penalty  =Number(b.total_penalty_due  ||0);
+  const total    =principal+interest+penalty;
+  const dueDayStr=b.Ref_Due_Date?'Due on the '+b.Ref_Due_Date+(b.Ref_Due_Date==1?'st':b.Ref_Due_Date==2?'nd':b.Ref_Due_Date==3?'rd':'th')+' of each month':'';
 
-  document.getElementById('profile-header').innerHTML = `
+  document.getElementById('profile-header').innerHTML=`
     <div class="profile-name">${b.Full_Name}</div>
     <div class="profile-badges">
       <span class="grade grade-${b.Credit_Grade}">${b.Credit_Grade}</span>
       <span class="meta-tag">${b.Status}</span>
-      <span class="meta-tag">Due: ${b.Ref_Due_Date}th every month</span>
+      ${dueDayStr?`<span class="meta-tag">${dueDayStr}</span>`:''}
     </div>
-    <div class="profile-balance-grid">
-      <div class="pbal-item">
-        <div class="pbal-label">Principal</div>
-        <div class="pbal-value" style="color:var(--text)">${fmt(principal)}</div>
-      </div>
-      <div class="pbal-item">
-        <div class="pbal-label">Interest Due</div>
-        <div class="pbal-value" style="color:var(--yellow)">${fmt(interest)}</div>
-      </div>
-      <div class="pbal-item">
-        <div class="pbal-label">Penalty Due</div>
-        <div class="pbal-value" style="color:var(--red)">${fmt(penalty)}</div>
-      </div>
-      <div class="pbal-item">
-        <div class="pbal-label">Total Outstanding</div>
-        <div class="pbal-value" style="color:var(--accent)">${fmt(total)}</div>
-      </div>
+    <div class="profile-bal-grid">
+      <div class="pbal"><div class="pbal-lbl">Principal Balance</div><div class="pbal-val" style="color:var(--text)">${fmt(principal)}</div></div>
+      <div class="pbal"><div class="pbal-lbl">Interest Due</div><div class="pbal-val" style="color:var(--yellow)">${fmt(interest)}</div></div>
+      <div class="pbal"><div class="pbal-lbl">Penalty Due</div><div class="pbal-val" style="color:var(--red)">${fmt(penalty)}</div></div>
+      <div class="pbal"><div class="pbal-lbl">Total Outstanding</div><div class="pbal-val" style="color:var(--accent)">${fmt(total)}</div></div>
     </div>`;
 
   // Dues
-  const dues = DB.monthly_dues
-    .filter(d => d.Borrower_ID === borrowerId)
-    .sort((a, b) => b.Month_Year.localeCompare(a.Month_Year));
-
-  const duesEl = document.getElementById('dues-list');
-  if (dues.length === 0) {
-    duesEl.innerHTML = '<div class="empty-state" style="padding:24px 0"><span class="emoji">📅</span>No dues generated yet</div>';
+  const dues=DB.monthly_dues.filter(d=>d.Borrower_ID===borrowerId)
+    .sort((a,b2)=>b2.Month_Year.localeCompare(a.Month_Year));
+  const duesEl=document.getElementById('dues-list');
+  if(!dues.length){
+    duesEl.innerHTML='<div class="empty" style="padding:20px 0"><span class="ico">📅</span>No monthly dues yet.<br>The system generates these automatically.</div>';
   } else {
-    duesEl.innerHTML = dues.map(d => `
+    duesEl.innerHTML=dues.map(d=>`
       <div class="due-item">
         <div>
           <div class="due-month">${d.Month_Year}</div>
           <div class="due-amounts">
-            Int: ${fmt(Number(d.Interest_Due))} &nbsp;|&nbsp;
-            Pen: ${fmt(Number(d.Penalty_Due))} &nbsp;|&nbsp;
+            Interest: ${fmt(Number(d.Interest_Due))} &nbsp;·&nbsp;
+            Penalty: ${fmt(Number(d.Penalty_Due))} &nbsp;·&nbsp;
             Paid: ${fmt(Number(d.Amount_Paid))}
           </div>
         </div>
@@ -1222,32 +769,33 @@ function openProfile(borrowerId) {
       </div>`).join('');
   }
 
-  // Transactions
-  const txns = DB.transactions
-    .filter(t => t.Borrower_ID === borrowerId)
-    .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
-
-  const txnEl = document.getElementById('txn-list');
-  if (txns.length === 0) {
-    txnEl.innerHTML = '<div class="empty-state" style="padding:24px 0"><span class="emoji">📂</span>No transactions yet</div>';
+  // Transactions with delete button
+  const txns=DB.transactions.filter(t=>t.Borrower_ID===borrowerId)
+    .sort((a,b2)=>new Date(b2.Timestamp)-new Date(a.Timestamp));
+  const txnEl=document.getElementById('txn-list');
+  if(!txns.length){
+    txnEl.innerHTML='<div class="empty" style="padding:20px 0"><span class="ico">📂</span>No transactions yet.</div>';
   } else {
-    txnEl.innerHTML = txns.map(t => {
-      const d = new Date(t.Timestamp);
-      const dateStr = d.toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' });
-      const isLoan  = t.Txn_Type === 'Loan';
-      const breakdown = isLoan
+    txnEl.innerHTML=txns.map(t=>{
+      const d=new Date(t.Timestamp);
+      const dateStr=d.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+      const isLoan=t.Txn_Type==='Loan';
+      const breakdown=isLoan
         ? `Principal: ${fmt(Number(t.Alloc_Principal))}`
         : `Int: ${fmt(Number(t.Alloc_Interest))} · Pen: ${fmt(Number(t.Alloc_Penalty))} · Prin: ${fmt(Number(t.Alloc_Principal))}`;
       return `
-        <div class="txn-item">
-          <div class="txn-icon ${isLoan ? 'loan' : 'payment'}">${isLoan ? '↓' : '↑'}</div>
+        <div class="txn-item" id="txn-${t.Txn_ID}">
+          <div class="txn-icon ${isLoan?'loan':'payment'}">${isLoan?'↓':'↑'}</div>
           <div class="txn-info">
             <div class="txn-type">${t.Txn_Type}</div>
             <div class="txn-date">${dateStr}</div>
             <div class="txn-breakdown">${breakdown}</div>
-            ${t.Notes ? `<div class="txn-breakdown" style="color:var(--text3)">${t.Notes}</div>` : ''}
+            ${t.Notes?`<div class="txn-note">${t.Notes}</div>`:''}
           </div>
-          <div class="txn-amount ${isLoan ? 'loan' : 'payment'}">${isLoan ? '+' : '-'}${fmt(Number(t.Total_Amount))}</div>
+          <div class="txn-right">
+            <div class="txn-amount ${isLoan?'loan':'payment'}">${isLoan?'+':'-'}${fmt(Number(t.Total_Amount))}</div>
+            <button class="txn-del-btn" onclick="confirmDeleteTxn('${t.Txn_ID}','${t.Txn_Type}',${Number(t.Total_Amount)})">🗑 Delete</button>
+          </div>
         </div>`;
     }).join('');
   }
@@ -1256,183 +804,224 @@ function openProfile(borrowerId) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  PAYMENT FORM
+//  DELETE TRANSACTION
 // ═══════════════════════════════════════════════════════
-function openPaymentForm() {
-  const b = DB.borrowers.find(x => x.Borrower_ID === currentBorrowerId);
-  document.getElementById('payment-borrower-name').textContent = b?.Full_Name || '';
-  document.getElementById('payment-back-label').textContent   = b?.Full_Name || 'Back';
-  document.getElementById('pay-total').value     = '';
-  document.getElementById('pay-interest').value  = '';
-  document.getElementById('pay-penalty').value   = '';
-  document.getElementById('pay-principal').value = '';
-  document.getElementById('pay-notes').value     = '';
-  updateRemaining();
+function confirmDeleteTxn(txnId, txnType, amount){
+  openModal(`
+    <div class="modal-title">🗑 Delete this entry?</div>
+    <p style="font-size:.88rem;color:var(--text2);margin-bottom:16px;line-height:1.7">
+      You are about to delete this <strong>${txnType}</strong> of <strong>${fmt(amount)}</strong>.<br>
+      This will also update the balance calculations.<br><br>
+      <span style="color:var(--yellow)">This cannot be undone.</span>
+    </p>
+    <button class="btn btn-danger" onclick="executeDeleteTxn('${txnId}')">Yes, Delete</button>
+    <button class="btn btn-ghost" onclick="closeModal()" style="margin-top:10px">Cancel</button>
+  `);
+}
+
+async function executeDeleteTxn(txnId){
+  closeModal();
+  try{
+    const result=await apiPost({action:'deleteTransaction',txn_id:txnId});
+    showToast(result.message||'Entry deleted','success');
+    await syncData();
+    openProfile(currentBorrowerId);
+  }catch(err){
+    showToast('Delete failed: '+err.message,'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  PAYMENT FORM — manual entry only
+// ═══════════════════════════════════════════════════════
+function openPaymentForm(){
+  const b=DB.borrowers.find(x=>x.Borrower_ID===currentBorrowerId);
+  document.getElementById('payment-borrower-name').textContent=b?.Full_Name||'';
+
+  // Show what they owe
+  document.getElementById('owe-interest').textContent  = fmt(Number(b?.total_interest_due ||0));
+  document.getElementById('owe-penalty').textContent   = fmt(Number(b?.total_penalty_due  ||0));
+  document.getElementById('owe-principal').textContent = fmt(Number(b?.principal_balance  ||0));
+  document.getElementById('owe-total').textContent     = fmt(
+    Number(b?.principal_balance||0)+Number(b?.total_interest_due||0)+Number(b?.total_penalty_due||0)
+  );
+
+  // Clear all fields
+  clearPaymentForm();
   goToScreen('payment');
 }
 
-function autoAllocate() {
-  const b       = DB.borrowers.find(x => x.Borrower_ID === currentBorrowerId);
-  const total   = parseFloat(document.getElementById('pay-total').value) || 0;
-  const intDue  = Number(b?.total_interest_due || 0);
-  const penDue  = Number(b?.total_penalty_due  || 0);
-
-  let remaining = total;
-  const i = Math.min(remaining, intDue); remaining -= i;
-  const p = Math.min(remaining, penDue); remaining -= p;
-  const pr = Math.max(0, remaining);
-
-  document.getElementById('pay-interest').value  = i.toFixed(2);
-  document.getElementById('pay-penalty').value   = p.toFixed(2);
-  document.getElementById('pay-principal').value = pr.toFixed(2);
-
-  updateBars(total, i, p, pr);
-  updateRemaining();
+function clearPaymentForm(){
+  ['pay-interest','pay-penalty','pay-principal'].forEach(id=>{
+    document.getElementById(id).value='';
+  });
+  document.getElementById('pay-notes').value='';
+  updatePayTotal();
+  // Re-enable save button
+  const btn=document.getElementById('save-payment-btn');
+  btn.disabled=false;
+  btn.textContent='💾 Save Payment';
 }
 
-function updateBars(total, i, p, pr) {
-  if (total <= 0) {
-    ['interest','penalty','principal'].forEach(k => {
-      document.getElementById('bar-' + k).style.width = '0%';
-    });
-    document.getElementById('prev-interest').textContent  = '₱0.00';
-    document.getElementById('prev-penalty').textContent   = '₱0.00';
-    document.getElementById('prev-principal').textContent = '₱0.00';
-    return;
-  }
-  document.getElementById('bar-interest').style.width   = (i  / total * 100) + '%';
-  document.getElementById('bar-penalty').style.width    = (p  / total * 100) + '%';
-  document.getElementById('bar-principal').style.width  = (pr / total * 100) + '%';
-  document.getElementById('prev-interest').textContent  = '₱' + i.toFixed(2);
-  document.getElementById('prev-penalty').textContent   = '₱' + p.toFixed(2);
-  document.getElementById('prev-principal').textContent = '₱' + pr.toFixed(2);
+function updatePayTotal(){
+  const i  = parseFloat(document.getElementById('pay-interest').value)  || 0;
+  const p  = parseFloat(document.getElementById('pay-penalty').value)   || 0;
+  const pr = parseFloat(document.getElementById('pay-principal').value) || 0;
+  const tot= i + p + pr;
+  document.getElementById('ptot-interest').textContent  = fmt(i);
+  document.getElementById('ptot-penalty').textContent   = fmt(p);
+  document.getElementById('ptot-principal').textContent = fmt(pr);
+  document.getElementById('ptot-total').textContent     = fmt(tot);
 }
 
-function updateRemaining() {
-  const total = parseFloat(document.getElementById('pay-total').value)    || 0;
-  const i     = parseFloat(document.getElementById('pay-interest').value)  || 0;
-  const p     = parseFloat(document.getElementById('pay-penalty').value)   || 0;
-  const pr    = parseFloat(document.getElementById('pay-principal').value) || 0;
-  const rem   = Math.round((total - i - p - pr) * 100) / 100;
-  const el    = document.getElementById('alloc-remaining-val');
-  el.textContent = (rem >= 0 ? '₱' : '-₱') + Math.abs(rem).toFixed(2);
-  el.className   = 'ok' + (Math.abs(rem) > 0.01 ? ' bad' : ' ok');
-}
+async function submitPayment(){
+  if(isSaving) return; // block double-tap
 
-async function submitPayment() {
-  const total = parseFloat(document.getElementById('pay-total').value)    || 0;
-  const i     = parseFloat(document.getElementById('pay-interest').value)  || 0;
-  const p     = parseFloat(document.getElementById('pay-penalty').value)   || 0;
-  const pr    = parseFloat(document.getElementById('pay-principal').value) || 0;
+  const i   = parseFloat(document.getElementById('pay-interest').value)  || 0;
+  const p   = parseFloat(document.getElementById('pay-penalty').value)   || 0;
+  const pr  = parseFloat(document.getElementById('pay-principal').value) || 0;
+  const tot = Math.round((i+p+pr)*100)/100;
   const notes = document.getElementById('pay-notes').value.trim();
 
-  if (total <= 0) { showToast('Enter a total amount', 'error'); return; }
+  if(tot<=0){ showToast('Enter at least one amount','error'); return; }
+  if(i<0||p<0||pr<0){ showToast('Amounts cannot be negative','error'); return; }
 
-  const sum = Math.round((i + p + pr) * 100) / 100;
-  const tot = Math.round(total * 100) / 100;
-  if (sum !== tot) { showToast('Allocation must equal total', 'error'); return; }
+  // Lock button immediately
+  isSaving=true;
+  const btn=document.getElementById('save-payment-btn');
+  btn.disabled=true;
+  btn.textContent='Saving…';
 
-  const result = await apiPost({
-    action:          'addPayment',
-    borrower_id:     currentBorrowerId,
-    total_amount:    tot,
-    alloc_interest:  i,
-    alloc_penalty:   p,
-    alloc_principal: pr,
-    notes,
-  });
+  try{
+    const result=await apiPost({
+      action:'addPayment',
+      borrower_id:    currentBorrowerId,
+      total_amount:   tot,
+      alloc_interest: i,
+      alloc_penalty:  p,
+      alloc_principal:pr,
+      notes,
+    });
 
-  showToast(result.message || 'Payment saved', result.status === 'queued' ? '' : 'success');
-  await syncData();
-  openProfile(currentBorrowerId);
+    // SUCCESS: clear fields, show toast, go back to profile
+    clearPaymentForm();
+    showToast(result.message||'Payment saved ✓','success');
+    await syncData();
+    openProfile(currentBorrowerId);
+  }catch(err){
+    showToast('Error: '+err.message,'error');
+    // Re-enable on failure so user can try again
+    btn.disabled=false;
+    btn.textContent='💾 Save Payment';
+  }finally{
+    isSaving=false;
+  }
 }
 
 // ═══════════════════════════════════════════════════════
 //  LOAN FORM
 // ═══════════════════════════════════════════════════════
-function openLoanForm() {
-  const b = DB.borrowers.find(x => x.Borrower_ID === currentBorrowerId);
-  document.getElementById('loan-borrower-name').textContent = b?.Full_Name || '';
-  document.getElementById('loan-back-label').textContent    = b?.Full_Name || 'Back';
-  document.getElementById('loan-amount').value = '';
-  document.getElementById('loan-notes').value  = '';
+function openLoanForm(){
+  const b=DB.borrowers.find(x=>x.Borrower_ID===currentBorrowerId);
+  document.getElementById('loan-borrower-name').textContent=b?.Full_Name||'';
+  document.getElementById('loan-amount').value='';
+  document.getElementById('loan-notes').value='';
+  const btn=document.getElementById('save-loan-btn');
+  btn.disabled=false; btn.textContent='💾 Record Loan';
   goToScreen('loan');
 }
 
-async function submitLoan() {
-  const amount = parseFloat(document.getElementById('loan-amount').value) || 0;
-  const notes  = document.getElementById('loan-notes').value.trim();
-  if (amount <= 0) { showToast('Enter a loan amount', 'error'); return; }
+async function submitLoan(){
+  if(isSaving) return;
+  const amount=parseFloat(document.getElementById('loan-amount').value)||0;
+  const notes=document.getElementById('loan-notes').value.trim();
+  if(amount<=0){showToast('Enter a loan amount','error');return}
 
-  const result = await apiPost({
-    action:      'addLoan',
-    borrower_id: currentBorrowerId,
-    amount,
-    notes,
-  });
+  isSaving=true;
+  const btn=document.getElementById('save-loan-btn');
+  btn.disabled=true; btn.textContent='Saving…';
 
-  showToast(result.message || 'Loan recorded', result.status === 'queued' ? '' : 'success');
-  await syncData();
-  openProfile(currentBorrowerId);
+  try{
+    const result=await apiPost({action:'addLoan',borrower_id:currentBorrowerId,amount,notes});
+    document.getElementById('loan-amount').value='';
+    document.getElementById('loan-notes').value='';
+    showToast(result.message||'Loan recorded ✓','success');
+    await syncData();
+    openProfile(currentBorrowerId);
+  }catch(err){
+    showToast('Error: '+err.message,'error');
+    btn.disabled=false; btn.textContent='💾 Record Loan';
+  }finally{
+    isSaving=false;
+  }
 }
 
 // ═══════════════════════════════════════════════════════
 //  ADD BORROWER
 // ═══════════════════════════════════════════════════════
-function clearAddBorrowerForm() {
-  document.getElementById('new-name').value  = '';
-  document.getElementById('new-due').value   = '';
-  document.getElementById('new-grade').value = 'Good';
+function clearAddForm(){
+  document.getElementById('new-name').value='';
+  document.getElementById('new-due').value='';
+  document.getElementById('new-grade').value='Good';
+  const btn=document.getElementById('save-borrower-btn');
+  btn.disabled=false; btn.textContent='+ Add Borrower';
 }
 
-async function submitNewBorrower() {
-  const name  = document.getElementById('new-name').value.trim();
-  const due   = parseInt(document.getElementById('new-due').value) || 0;
-  const grade = document.getElementById('new-grade').value;
+async function submitNewBorrower(){
+  if(isSaving) return;
+  const name =document.getElementById('new-name').value.trim();
+  const due  =parseInt(document.getElementById('new-due').value)||0;
+  const grade=document.getElementById('new-grade').value;
 
-  if (!name)          { showToast('Enter borrower name', 'error'); return; }
-  if (due < 1 || due > 31) { showToast('Due date must be 1–31', 'error'); return; }
+  if(!name){showToast('Enter borrower name','error');return}
+  if(due<1||due>31){showToast('Due date must be between 1 and 31','error');return}
 
-  const result = await apiPost({
-    action:       'addBorrower',
-    full_name:    name,
-    ref_due_date: due,
-    credit_grade: grade,
-  });
+  isSaving=true;
+  const btn=document.getElementById('save-borrower-btn');
+  btn.disabled=true; btn.textContent='Saving…';
 
-  showToast(result.message || 'Borrower added', result.status === 'queued' ? '' : 'success');
-  if (result.status !== 'queued') {
-    await syncData();
-    navigate('dashboard', document.querySelector('[data-screen="dashboard"]'));
+  try{
+    const result=await apiPost({action:'addBorrower',full_name:name,ref_due_date:due,credit_grade:grade});
+    clearAddForm();
+    showToast(result.message||'Borrower added ✓','success');
+    if(result.status!=='queued'){
+      await syncData();
+      navigate('dashboard',document.querySelector('[data-screen="dashboard"]'));
+    }
+  }catch(err){
+    showToast('Error: '+err.message,'error');
+    btn.disabled=false; btn.textContent='+ Add Borrower';
+  }finally{
+    isSaving=false;
   }
 }
 
 // ═══════════════════════════════════════════════════════
 //  QUEUE SCREEN
 // ═══════════════════════════════════════════════════════
-async function renderQueue() {
-  const items = await queueGetAll();
-  const el    = document.getElementById('queue-list');
-  if (items.length === 0) {
-    el.innerHTML = '<div class="empty-state"><span class="emoji">✅</span>Queue is empty.<br>All data is synced.</div>';
+async function renderQueue(){
+  const items=await queueGetAll();
+  const el=document.getElementById('queue-list');
+  if(!items.length){
+    el.innerHTML='<div class="empty"><span class="ico">✅</span>Queue is empty.<br>All data is synced.</div>';
     return;
   }
-  el.innerHTML = items.map(item => `
+  el.innerHTML=items.map(item=>`
     <div class="card">
-      <div class="stat-label">${item.payload.action}</div>
-      <div style="font-size:0.78rem;color:var(--text2);margin-top:4px;font-family:var(--mono)">${JSON.stringify(item.payload).slice(0,80)}...</div>
-      <div style="font-size:0.65rem;color:var(--text3);margin-top:6px;font-family:var(--mono)">${item.queued_at}</div>
+      <div style="font-size:.72rem;font-family:var(--mono);color:var(--accent);margin-bottom:4px">${item.payload.action}</div>
+      <div style="font-size:.75rem;color:var(--text2);margin-bottom:4px">${JSON.stringify(item.payload).slice(0,90)}…</div>
+      <div style="font-size:.62rem;color:var(--text3);font-family:var(--mono)">${item.queued_at}</div>
     </div>`).join('');
 }
 
 // ═══════════════════════════════════════════════════════
 //  MODAL
 // ═══════════════════════════════════════════════════════
-function openModal(html) {
-  document.getElementById('modal-content').innerHTML = html;
+function openModal(html){
+  document.getElementById('modal-content').innerHTML=html;
   document.getElementById('modal-overlay').classList.add('open');
 }
-function closeModal() {
+function closeModal(){
   document.getElementById('modal-overlay').classList.remove('open');
 }
 
@@ -1440,44 +1029,35 @@ function closeModal() {
 //  TOAST
 // ═══════════════════════════════════════════════════════
 let toastTimer;
-function showToast(msg, type) {
-  const el = document.getElementById('toast');
-  el.textContent  = msg;
-  el.className    = 'show ' + (type || '');
+function showToast(msg,type){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.className='show '+(type||'');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.className = ''; }, 2800);
+  toastTimer=setTimeout(()=>{el.className=''},2800);
 }
 
 // ═══════════════════════════════════════════════════════
-//  FORMAT HELPERS
+//  FORMAT
 // ═══════════════════════════════════════════════════════
-function fmt(n) {
-  return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmt(n){
+  return '₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 
 // ═══════════════════════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════════════════════
-async function boot() {
+async function boot(){
   await openIDB();
-
-  // Load cached data first (instant)
-  const cached = await idbGet('DB');
-  if (cached) {
-    DB = cached;
-    renderDashboard();
-  }
-
+  const cached=await idbGet('DB');
+  if(cached){DB=cached;renderDashboard()}
   updateNetworkUI();
   updateQueueBadge();
-
-  // Then sync if online
-  if (isOnline()) syncData();
+  if(isOnline()) syncData();
 }
 
-// Register service worker
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 
 boot();
