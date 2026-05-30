@@ -280,8 +280,16 @@ button{cursor:pointer;border:none;background:none;color:inherit}
       </div>
     </div>
 
+    <!-- Due Today -->
+    <div class="section-label">📅 Due Today</div>
+    <div id="due-today-list"></div>
+
+    <!-- Due This Week -->
+    <div class="section-label">📆 Due This Week</div>
+    <div id="due-week-list"></div>
+
     <!-- Needs attention (overdue) -->
-    <div class="section-label" id="attn-label">Needs Attention</div>
+    <div class="section-label" id="attn-label">⚠️ Overdue — Needs Attention</div>
     <div id="overdue-list"></div>
 
     <!-- Search + all borrowers -->
@@ -497,7 +505,7 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 // ═══════════════════════════════════════════════════════
 //  CONFIG — paste your deployed Apps Script URL here
 // ═══════════════════════════════════════════════════════
-const API_URL = 'https://script.google.com/macros/s/AKfycbx2GIi_1AKGOYVq38STKVkAd-xCrlvPHHK2oSKkf-sqcZfucxWkz7K7nthcbIgmsv-0/exec';
+const API_URL = 'YOUR_WEB_APP_URL_HERE';
 
 // ═══════════════════════════════════════════════════════
 //  STATE
@@ -642,26 +650,80 @@ function renderDashboard(){
     totI   +=Number(b.total_interest_due ||0);
     totPen +=Number(b.total_penalty_due  ||0);
   });
-
   document.getElementById('stat-borrowers').textContent=active.length;
   document.getElementById('stat-principal').textContent=fmt(totP);
   document.getElementById('stat-interest').textContent=fmt(totI);
   document.getElementById('stat-penalty').textContent=fmt(totPen);
 
-  // Overdue = active borrowers with any unpaid dues
+  const today=new Date();
+  const todayDay=today.getDate();
+  const next7Days=[];
+  for(let i=1;i<=7;i++){const d=new Date(today);d.setDate(today.getDate()+i);next7Days.push(d.getDate());}
+
+  // ── Due Today ──
+  const dueTodayBorrowers=active.filter(b=>Number(b.Ref_Due_Date)===todayDay);
+  const dueTodayEl=document.getElementById('due-today-list');
+  if(!dueTodayBorrowers.length){
+    dueTodayEl.innerHTML='<div class="empty" style="padding:12px 0"><span class="ico" style="font-size:1.4rem">✅</span>No collections due today.</div>';
+  } else {
+    dueTodayEl.innerHTML=dueTodayBorrowers.map(b=>{
+      const interest=Number(b.total_interest_due||0);
+      const penalty=Number(b.total_penalty_due||0);
+      const total=interest+penalty;
+      return `<div class="card" style="border-left:3px solid var(--accent);cursor:pointer;margin-bottom:8px" onclick="openProfile('${b.Borrower_ID}')">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><div style="font-weight:700">${b.Full_Name}</div>
+          <div style="font-size:.68rem;font-family:var(--mono);color:var(--text3);margin-top:2px">Due today · every ${b.Ref_Due_Date}th</div></div>
+          <div style="text-align:right">
+            <div style="font-family:var(--mono);font-weight:700;color:var(--accent)">${fmt(total)}</div>
+            <div style="font-size:.62rem;font-family:var(--mono);color:var(--text3)">to collect</div>
+          </div>
+        </div>
+        ${total>0?`<div style="display:flex;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          <span style="font-size:.68rem;font-family:var(--mono);color:var(--yellow)">Int: ${fmt(interest)}</span>
+          ${penalty>0?`<span style="font-size:.68rem;font-family:var(--mono);color:var(--red)">Pen: ${fmt(penalty)}</span>`:''}
+        </div>`:''}
+      </div>`;
+    }).join('');
+  }
+
+  // ── Due This Week ──
+  const dueWeekBorrowers=active.filter(b=>{
+    const r=Number(b.Ref_Due_Date);
+    return next7Days.includes(r)&&r!==todayDay;
+  }).sort((a,b)=>Number(a.Ref_Due_Date)-Number(b.Ref_Due_Date));
+  const dueWeekEl=document.getElementById('due-week-list');
+  if(!dueWeekBorrowers.length){
+    dueWeekEl.innerHTML='<div class="empty" style="padding:12px 0"><span class="ico" style="font-size:1.4rem">📆</span>No collections in the next 7 days.</div>';
+  } else {
+    dueWeekEl.innerHTML=dueWeekBorrowers.map(b=>{
+      const r=Number(b.Ref_Due_Date);
+      let daysAway=r-todayDay; if(daysAway<0) daysAway+=31;
+      const interest=Number(b.total_interest_due||0);
+      const penalty=Number(b.total_penalty_due||0);
+      return `<div class="card" style="border-left:3px solid var(--yellow);cursor:pointer;margin-bottom:8px" onclick="openProfile('${b.Borrower_ID}')">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><div style="font-weight:700">${b.Full_Name}</div>
+          <div style="font-size:.68rem;font-family:var(--mono);color:var(--text3);margin-top:2px">Due in ${daysAway} day${daysAway===1?'':'s'} · every ${b.Ref_Due_Date}th</div></div>
+          <div style="text-align:right">
+            <div style="font-family:var(--mono);font-weight:700;color:var(--yellow)">${fmt(interest+penalty)}</div>
+            <div style="font-size:.62rem;font-family:var(--mono);color:var(--text3)">expected</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Overdue ──
   const overdue=active.filter(b=>
-    DB.monthly_dues.some(d=>d.Borrower_ID===b.Borrower_ID && d.Status!=='Paid')
+    DB.monthly_dues.some(d=>d.Borrower_ID===b.Borrower_ID&&d.Status!=='Paid')&&
+    Number(b.Ref_Due_Date)!==todayDay
   );
   const overdueEl=document.getElementById('overdue-list');
-  const attnLbl=document.getElementById('attn-label');
-  attnLbl.textContent='Needs Attention';
-  if(overdue.length>0){
-    document.getElementById('stat-overdue-count').textContent=overdue.length+' with unpaid dues';
-    overdueEl.innerHTML=overdue.map(b=>borrowerCardHTML(b)).join('');
-  } else {
-    document.getElementById('stat-overdue-count').textContent='all clear';
-    overdueEl.innerHTML='<div class="empty"><span class="ico">✅</span>No overdue borrowers right now.</div>';
-  }
+  document.getElementById('stat-overdue-count').textContent=overdue.length>0?overdue.length+' with unpaid dues':'all clear';
+  overdueEl.innerHTML=overdue.length>0
+    ? overdue.map(b=>borrowerCardHTML(b)).join('')
+    : '<div class="empty" style="padding:12px 0"><span class="ico" style="font-size:1.4rem">✅</span>No overdue borrowers.</div>';
 
   renderBorrowerList(DB.borrowers);
 }
