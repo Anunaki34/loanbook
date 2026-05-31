@@ -510,7 +510,7 @@ const API_URL = 'YOUR_WEB_APP_URL_HERE';
 // ═══════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════
-let DB = { borrowers:[], monthly_dues:[], transactions:[], last_sync:null };
+let DB = { borrowers:[], dues_by_borrower:{}, transactions:[], last_sync:null };
 let currentBorrowerId = null;
 let screenHistory = ['dashboard'];
 let isSaving = false; // global submit guard — prevents double-tap duplicates
@@ -564,9 +564,9 @@ async function syncData(){
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     const data=await resp.json();
     if(data.error) throw new Error(data.error);
-    DB.borrowers    = data.borrowers    || [];
-    DB.monthly_dues = data.monthly_dues || [];
-    DB.transactions = data.transactions || [];
+    DB.borrowers        = data.borrowers        || [];
+    DB.dues_by_borrower = data.dues_by_borrower || {};
+    DB.transactions     = data.transactions     || [];
     DB.last_sync    = new Date().toISOString();
     await idbSet('DB',DB);
     renderDashboard();
@@ -716,7 +716,7 @@ function renderDashboard(){
 
   // ── Overdue ──
   const overdue=active.filter(b=>
-    DB.monthly_dues.some(d=>d.Borrower_ID===b.Borrower_ID&&d.Status!=='Paid')&&
+    (DB.dues_by_borrower[b.Borrower_ID]||[]).some(d=>(d.status||d.Status)!=='Paid')&&
     Number(b.Ref_Due_Date)!==todayDay
   );
   const overdueEl=document.getElementById('overdue-list');
@@ -736,8 +736,8 @@ function renderBorrowerList(list){
   }
   // Sort: overdue first, then by name
   const sorted=[...list].sort((a,b)=>{
-    const aOver=DB.monthly_dues.some(d=>d.Borrower_ID===a.Borrower_ID&&d.Status!=='Paid');
-    const bOver=DB.monthly_dues.some(d=>d.Borrower_ID===b.Borrower_ID&&d.Status!=='Paid');
+    const aOver=(DB.dues_by_borrower[a.Borrower_ID]||[]).some(d=>(d.status||d.Status)!=='Paid');
+    const bOver=(DB.dues_by_borrower[b.Borrower_ID]||[]).some(d=>(d.status||d.Status)!=='Paid');
     if(aOver&&!bOver) return -1;
     if(!aOver&&bOver) return 1;
     return a.Full_Name.localeCompare(b.Full_Name);
@@ -746,7 +746,8 @@ function renderBorrowerList(list){
 }
 
 function borrowerCardHTML(b){
-  const unpaid=DB.monthly_dues.filter(d=>d.Borrower_ID===b.Borrower_ID&&d.Status!=='Paid');
+  const allDues=DB.dues_by_borrower[b.Borrower_ID]||[];
+  const unpaid=allDues.filter(d=>(d.status||d.Status)!=='Paid');
   const isOverdue=unpaid.length>0;
   const barClass=b.Status==='Closed'?'closed':isOverdue?'overdue':'ok';
   const principal=Number(b.principal_balance  ||0);
@@ -811,8 +812,8 @@ function openProfile(borrowerId){
     </div>`;
 
   // Dues
-  const dues=DB.monthly_dues.filter(d=>d.Borrower_ID===borrowerId)
-    .sort((a,b2)=>b2.Month_Year.localeCompare(a.Month_Year));
+  const dues=(DB.dues_by_borrower[borrowerId]||[])
+    .slice().sort((a,b2)=>b2.monthYear.localeCompare(a.monthYear));
   const duesEl=document.getElementById('dues-list');
   if(!dues.length){
     duesEl.innerHTML='<div class="empty" style="padding:20px 0"><span class="ico">📅</span>No monthly dues yet.<br>The system generates these automatically.</div>';
@@ -820,17 +821,12 @@ function openProfile(borrowerId){
     // Compute running totals across all unpaid/partial rows
     let totalIntOwed=0, totalPenOwed=0, totalStillOwed=0;
     dues.forEach(d=>{
-      if(d.Status==='Paid') return;
-      const intDue  = Number(d.Interest_Due);
-      const penDue  = Number(d.Penalty_Due);
-      const paid    = Number(d.Amount_Paid||0);
-      const intPaid = Math.min(paid, intDue);
-      const intOwed = Math.max(0, intDue - intPaid);
-      const rem     = Math.max(0, paid - intDue);
-      const penPaid = Math.min(rem, penDue);
-      const penOwed = intOwed > 0 ? penDue : Math.max(0, penDue - penPaid);
-      totalIntOwed  += intOwed;
-      totalPenOwed  += penOwed;
+      const dSt = d.status||d.Status||'Unpaid';
+      if(dSt==='Paid') return;
+      const intOwed = Number(d.int_owed!=null ? d.int_owed : Math.max(0,Number(d.intDue||d.Interest_Due||0)-Math.min(Number(d.amount_paid||d.Amount_Paid||0),Number(d.intDue||d.Interest_Due||0))));
+      const penOwed = Number(d.pen_owed!=null ? d.pen_owed : 0);
+      totalIntOwed   += intOwed;
+      totalPenOwed   += penOwed;
       totalStillOwed += (intOwed + penOwed);
     });
 
@@ -852,24 +848,23 @@ function openProfile(borrowerId){
       </div>` : '';
 
     duesEl.innerHTML = summaryStrip + dues.map(d=>{
-      const intDue  = Number(d.Interest_Due);
-      const penDue  = Number(d.Penalty_Due);
-      const paid    = Number(d.Amount_Paid||0);
-      const intPaid = Math.min(paid, intDue);
-      const intOwed = Math.max(0, intDue - intPaid);
-      const rem     = Math.max(0, paid - intDue);
-      const penPaid = Math.min(rem, penDue);
-      const penOwed = intOwed > 0 ? penDue : Math.max(0, penDue - penPaid);
-      const totalOwed = intOwed + penOwed;
+      const intDue  = Number(d.intDue  || d.Interest_Due || 0);
+      const penDue  = Number(d.penDue  || d.Penalty_Due  || 0);
+      const intOwed = Number(d.int_owed != null ? d.int_owed : intDue);
+      const penOwed = Number(d.pen_owed != null ? d.pen_owed : penDue);
+      const intPaid = _round(intDue - intOwed);
+      const penPaid = _round(penDue - penOwed);
+      const totalOwed = _round(intOwed + penOwed);
 
       // Color the left bar by status
-      const barColor = d.Status==='Paid'
+      const dStatus2 = d.status||d.Status||'Unpaid';
+      const barColor = dStatus2==='Paid'
         ? 'var(--green)'
-        : d.Status==='Partial'
+        : dStatus2==='Partial'
           ? 'var(--yellow)'
           : totalOwed > 0 && penOwed > 0
-            ? 'var(--red)'      // overdue with penalty
-            : 'var(--text3)';   // unpaid, no penalty yet
+            ? 'var(--red)'
+            : 'var(--text3)';
 
       return `
       <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:8px;overflow:hidden">
@@ -878,13 +873,13 @@ function openProfile(borrowerId){
           <div style="display:flex;align-items:center;gap:8px">
             <div style="width:3px;height:32px;border-radius:2px;background:${barColor};flex-shrink:0"></div>
             <div>
-              <div style="font-family:var(--mono);font-size:.82rem;font-weight:700">${d.Month_Year}</div>
+              <div style="font-family:var(--mono);font-size:.82rem;font-weight:700">${d.monthYear||d.Month_Year}</div>
               <div style="font-size:.65rem;color:var(--text3);margin-top:1px">
-                Principal: ${fmt(Number(d.Principal_Snapshot))}
+                Principal: ${fmt(Number(d.principal||d.Principal_Snapshot||0))}
               </div>
             </div>
           </div>
-          <span class="due-status ${d.Status}">${d.Status}</span>
+          <span class="due-status ${dStatus2}">${dStatus2}</span>
         </div>
         <!-- Breakdown grid -->
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:1px solid var(--border);padding:8px 14px">
@@ -922,8 +917,11 @@ function openProfile(borrowerId){
     txnEl.innerHTML='<div class="empty" style="padding:20px 0"><span class="ico">📂</span>No transactions yet.</div>';
   } else {
     txnEl.innerHTML=txns.map(t=>{
-      const d=new Date(t.Timestamp);
-      const dateStr=d.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+      const rawTs = String(t.Timestamp||'');
+      const d = new Date(rawTs);
+      // Display in Manila local time
+      const dateStr = isNaN(d) ? rawTs.slice(0,10) :
+        d.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric',timeZone:'Asia/Manila'});
       const isLoan=t.Txn_Type==='Loan';
       const breakdown=isLoan
         ? `Principal: ${fmt(Number(t.Alloc_Principal))}`
@@ -1040,11 +1038,12 @@ async function submitPayment(){
   try{
     const result=await apiPost({
       action:'addPayment',
-      borrower_id:    currentBorrowerId,
-      total_amount:   tot,
-      alloc_interest: i,
-      alloc_penalty:  p,
-      alloc_principal:pr,
+      borrower_id:     currentBorrowerId,
+      total_amount:    tot,
+      alloc_interest:  i,
+      alloc_penalty:   p,
+      alloc_principal: pr,
+      date_str:        new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Manila'}),
       notes,
     });
 
@@ -1087,7 +1086,8 @@ async function submitLoan(){
   btn.disabled=true; btn.textContent='Saving…';
 
   try{
-    const result=await apiPost({action:'addLoan',borrower_id:currentBorrowerId,amount,notes});
+    const result=await apiPost({action:'addLoan',borrower_id:currentBorrowerId,amount,
+      date_str:new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Manila'}),notes});
     document.getElementById('loan-amount').value='';
     document.getElementById('loan-notes').value='';
     showToast(result.message||'Loan recorded ✓','success');
@@ -1195,7 +1195,11 @@ function fmt(n){
 async function boot(){
   await openIDB();
   const cached=await idbGet('DB');
-  if(cached){DB=cached;renderDashboard()}
+  if(cached){
+    DB=cached;
+    if(!DB.dues_by_borrower) DB.dues_by_borrower={};
+    renderDashboard();
+  }
   updateNetworkUI();
   updateQueueBadge();
   if(isOnline()) syncData();
