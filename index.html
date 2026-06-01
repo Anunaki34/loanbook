@@ -176,6 +176,7 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 .due-status.Unpaid{background:rgba(255,77,109,.15);color:var(--red)}
 .due-status.Partial{background:rgba(255,194,51,.15);color:var(--yellow)}
 .due-status.Paid{background:rgba(0,217,126,.15);color:var(--green)}
+.due-status.Projected{background:rgba(167,139,250,.15);color:var(--purple)}
 
 /* ── TRANSACTION LIST ── */
 .txn-list-wrap{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
@@ -816,18 +817,17 @@ function openProfile(borrowerId){
     .slice().sort((a,b2)=>b2.monthYear.localeCompare(a.monthYear));
   const duesEl=document.getElementById('dues-list');
   if(!dues.length){
-    duesEl.innerHTML='<div class="empty" style="padding:20px 0"><span class="ico">📅</span>No monthly dues yet.<br>The system generates these automatically.</div>';
+    duesEl.innerHTML='<div class="empty" style="padding:20px 0"><span class="ico">📅</span>No monthly dues yet.<br>Add a loan to generate the payment schedule.</div>';
   } else {
-    // Compute running totals across all unpaid/partial rows
+    // Active rows only for totals
+    const activeDues = dues.filter(d=>(d.rowType||d.Row_Type)!=='Projected');
+    const projDues   = dues.filter(d=>(d.rowType||d.Row_Type)==='Projected');
     let totalIntOwed=0, totalPenOwed=0, totalStillOwed=0;
-    dues.forEach(d=>{
-      const dSt = d.status||d.Status||'Unpaid';
-      if(dSt==='Paid') return;
-      const intOwed = Number(d.int_owed!=null ? d.int_owed : Math.max(0,Number(d.intDue||d.Interest_Due||0)-Math.min(Number(d.amount_paid||d.Amount_Paid||0),Number(d.intDue||d.Interest_Due||0))));
-      const penOwed = Number(d.pen_owed!=null ? d.pen_owed : 0);
-      totalIntOwed   += intOwed;
-      totalPenOwed   += penOwed;
-      totalStillOwed += (intOwed + penOwed);
+    activeDues.forEach(d=>{
+      if(d.status==='Paid') return;
+      totalIntOwed   += Number(d.int_owed  ||0);
+      totalPenOwed   += Number(d.pen_owed  ||0);
+      totalStillOwed += Number(d.total_owed||0);
     });
 
     // Summary strip at the top of dues section
@@ -847,66 +847,62 @@ function openProfile(borrowerId){
         </div>
       </div>` : '';
 
-    duesEl.innerHTML = summaryStrip + dues.map(d=>{
-      const intDue  = Number(d.intDue  || d.Interest_Due || 0);
-      const penDue  = Number(d.penDue  || d.Penalty_Due  || 0);
-      const intOwed = Number(d.int_owed != null ? d.int_owed : intDue);
-      const penOwed = Number(d.pen_owed != null ? d.pen_owed : penDue);
-      const intPaid = _round(intDue - intOwed);
-      const penPaid = _round(penDue - penOwed);
-      const totalOwed = _round(intOwed + penOwed);
+    // Render function for one due card
+    const renderDueCard = (d, isProjected) => {
+      const intDue     = Number(d.intDue    || d.Interest_Due    || 0);
+      const penCharged = Number(d.penCharged!= null ? d.penCharged : (d.penMax||d.penDue||d.Penalty_Due||0));
+      const intOwed    = Number(d.int_owed  != null ? d.int_owed   : intDue);
+      const penOwed    = Number(d.pen_owed  != null ? d.pen_owed   : penCharged);
+      const intPaid    = _round(intDue      - intOwed);
+      const penPaid    = _round(penCharged  - penOwed);
+      const totalOwed  = Number(d.total_owed!= null ? d.total_owed : _round(intOwed + Math.max(0,penOwed)));
+      const dStatus2   = isProjected ? 'Projected' : (d.status||d.Status||'Unpaid');
+      const penNote    = d.penNote || (penCharged > 0 ? '⚡ Penalty: interest unpaid' : '');
+      const barColor   = isProjected        ? 'var(--purple)'
+                       : dStatus2==='Paid'   ? 'var(--green)'
+                       : dStatus2==='Partial'? 'var(--yellow)'
+                       : penOwed > 0         ? 'var(--red)'
+                       :                       'var(--text3)';
 
-      // Color the left bar by status
-      const dStatus2 = d.status||d.Status||'Unpaid';
-      const barColor = dStatus2==='Paid'
-        ? 'var(--green)'
-        : dStatus2==='Partial'
-          ? 'var(--yellow)'
-          : totalOwed > 0 && penOwed > 0
-            ? 'var(--red)'
-            : 'var(--text3)';
-
-      return `
-      <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:8px;overflow:hidden">
-        <!-- Header row -->
+      return `<div style="background:${isProjected?'rgba(167,139,250,.05)':'var(--panel)'};border:1px solid ${isProjected?'rgba(167,139,250,.3)':'var(--border)'};border-radius:var(--r-sm);margin-bottom:8px;overflow:hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px 6px">
           <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:3px;height:32px;border-radius:2px;background:${barColor};flex-shrink:0"></div>
+            <div style="width:3px;height:36px;border-radius:2px;background:${barColor};flex-shrink:0"></div>
             <div>
               <div style="font-family:var(--mono);font-size:.82rem;font-weight:700">${d.monthYear||d.Month_Year}</div>
-              <div style="font-size:.65rem;color:var(--text3);margin-top:1px">
-                Principal: ${fmt(Number(d.principal||d.Principal_Snapshot||0))}
-              </div>
+              <div style="font-size:.62rem;color:var(--text3);margin-top:1px">Due: ${d.dueDate||d.Due_Date||''} · Principal: ${fmt(Number(d.principal||d.Principal_Snapshot||0))}</div>
+              ${!isProjected&&penCharged>0?`<div style="font-size:.6rem;color:${penOwed>0?'var(--red)':'var(--text3)'};margin-top:1px;font-family:var(--mono)">${penNote}</div>`:''}
+              ${isProjected?'<div style="font-size:.6rem;color:var(--purple);margin-top:1px;font-family:var(--mono)">📅 Projected — not yet due</div>':''}
             </div>
           </div>
           <span class="due-status ${dStatus2}">${dStatus2}</span>
         </div>
-        <!-- Breakdown grid -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:1px solid var(--border);padding:8px 14px">
-          <!-- Interest -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--border);padding:8px 14px">
           <div style="text-align:center;padding:4px 0">
             <div style="font-size:.58rem;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Interest</div>
             <div style="font-family:var(--mono);font-size:.78rem;font-weight:700;color:var(--yellow);margin-top:2px">${fmt(intDue)}</div>
-            ${intPaid>0?`<div style="font-size:.6rem;font-family:var(--mono);color:var(--green);margin-top:1px">paid ${fmt(intPaid)}</div>`:''}
-            ${intOwed>0?`<div style="font-size:.6rem;font-family:var(--mono);color:var(--red);margin-top:1px">owes ${fmt(intOwed)}</div>`:'<div style="font-size:.6rem;font-family:var(--mono);color:var(--green);margin-top:1px">✓ cleared</div>'}
+            ${!isProjected&&intPaid>0?`<div style="font-size:.6rem;font-family:var(--mono);color:var(--green);margin-top:1px">paid ${fmt(intPaid)}</div>`:''}
+            ${!isProjected?(intOwed>0?`<div style="font-size:.6rem;font-family:var(--mono);color:var(--red);margin-top:1px">owes ${fmt(intOwed)}</div>`:'<div style="font-size:.6rem;font-family:var(--mono);color:var(--green);margin-top:1px">✓ cleared</div>'):''}
           </div>
-          <!-- Penalty -->
           <div style="text-align:center;padding:4px 0;border-left:1px solid var(--border)">
             <div style="font-size:.58rem;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Penalty</div>
-            <div style="font-family:var(--mono);font-size:.78rem;font-weight:700;color:${penDue>0?'var(--red)':'var(--text3)'};margin-top:2px">${penDue>0?fmt(penDue):'—'}</div>
-            ${penPaid>0&&penDue>0?`<div style="font-size:.6rem;font-family:var(--mono);color:var(--green);margin-top:1px">paid ${fmt(penPaid)}</div>`:''}
-            ${penOwed>0?`<div style="font-size:.6rem;font-family:var(--mono);color:var(--red);margin-top:1px">owes ${fmt(penOwed)}</div>`:penDue>0?'<div style="font-size:.6rem;font-family:var(--mono);color:var(--green);margin-top:1px">✓ cleared</div>':''}
+            <div style="font-family:var(--mono);font-size:.78rem;font-weight:700;color:${penCharged>0?'var(--red)':'var(--text3)'};margin-top:2px">${penCharged>0?fmt(penCharged):'—'}</div>
+            ${!isProjected&&penPaid>0?`<div style="font-size:.6rem;font-family:var(--mono);color:var(--green);margin-top:1px">paid ${fmt(penPaid)}</div>`:''}
+            ${!isProjected?(penOwed>0?`<div style="font-size:.6rem;font-family:var(--mono);color:var(--red);margin-top:1px">owes ${fmt(penOwed)}</div>`:penCharged>0?'<div style="font-size:.6rem;font-family:var(--mono);color:var(--green);margin-top:1px">✓ cleared</div>':''):''}
           </div>
-          <!-- Still to pay -->
           <div style="text-align:center;padding:4px 0;border-left:1px solid var(--border)">
-            <div style="font-size:.58rem;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Still to Pay</div>
-            <div style="font-family:var(--mono);font-size:.78rem;font-weight:700;color:${totalOwed>0?'var(--accent)':'var(--green)'};margin-top:2px">
-              ${totalOwed>0 ? fmt(totalOwed) : '✓ Paid'}
+            <div style="font-size:.58rem;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em">${isProjected?'Expected':'Still to Pay'}</div>
+            <div style="font-family:var(--mono);font-size:.78rem;font-weight:700;color:${isProjected?'var(--purple)':totalOwed>0?'var(--accent)':'var(--green)'};margin-top:2px">
+              ${isProjected?fmt(_round(intDue+penCharged)):totalOwed>0?fmt(totalOwed):'✓ Paid'}
             </div>
           </div>
         </div>
       </div>`;
-    }).join('');
+    };
+    duesEl.innerHTML = summaryStrip
+      + activeDues.map(d=>renderDueCard(d,false)).join('')
+      + (projDues.length?`<div class="section-label" style="margin-top:14px">📅 Upcoming — Next ${projDues.length} Month${projDues.length>1?'s':''}</div>`:'')
+      + projDues.map(d=>renderDueCard(d,true)).join('');
   }
 
   // Transactions with delete button
@@ -1185,6 +1181,7 @@ function showToast(msg,type){
 // ═══════════════════════════════════════════════════════
 //  FORMAT
 // ═══════════════════════════════════════════════════════
+function _round(n){return Math.round(Number(n||0)*100)/100;}
 function fmt(n){
   return '₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
