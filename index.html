@@ -506,7 +506,7 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 // ═══════════════════════════════════════════════════════
 //  CONFIG — paste your deployed Apps Script URL here
 // ═══════════════════════════════════════════════════════
-const API_URL = 'https://script.google.com/macros/s/AKfycbx2GIi_1AKGOYVq38STKVkAd-xCrlvPHHK2oSKkf-sqcZfucxWkz7K7nthcbIgmsv-0/exec';
+const API_URL = 'YOUR_WEB_APP_URL_HERE';
 
 // ═══════════════════════════════════════════════════════
 //  STATE
@@ -814,14 +814,21 @@ function openProfile(borrowerId){
 
   // Dues
   const dues=(DB.dues_by_borrower[borrowerId]||[])
-    .slice().sort((a,b2)=>b2.monthYear.localeCompare(a.monthYear));
+    .slice().sort((a,b2)=>{
+      // Extract YYYY-MM safely for sorting regardless of format
+      const ay = String(a.monthYear||a.Month_Year||'').match(/(\d{4}-\d{2})/);
+      const by = String(b2.monthYear||b2.Month_Year||'').match(/(\d{4}-\d{2})/);
+      const as = ay ? ay[1] : '';
+      const bs = by ? by[1] : '';
+      return bs.localeCompare(as); // newest first
+    });
   const duesEl=document.getElementById('dues-list');
   if(!dues.length){
     duesEl.innerHTML='<div class="empty" style="padding:20px 0"><span class="ico">📅</span>No monthly dues yet.<br>Add a loan to generate the payment schedule.</div>';
   } else {
     // Active rows only for totals
-    const activeDues = dues.filter(d=>(d.rowType||d.Row_Type)!=='Projected');
-    const projDues   = dues.filter(d=>(d.rowType||d.Row_Type)==='Projected');
+    const activeDues = dues.filter(d=>String(d.rowType||d.Row_Type||'Active').trim()!=='Projected');
+    const projDues   = dues.filter(d=>String(d.rowType||d.Row_Type||'').trim()==='Projected');
     let totalIntOwed=0, totalPenOwed=0, totalStillOwed=0;
     activeDues.forEach(d=>{
       if(d.status==='Paid') return;
@@ -869,8 +876,8 @@ function openProfile(borrowerId){
           <div style="display:flex;align-items:center;gap:8px">
             <div style="width:3px;height:36px;border-radius:2px;background:${barColor};flex-shrink:0"></div>
             <div>
-              <div style="font-family:var(--mono);font-size:.82rem;font-weight:700">${d.monthYear||d.Month_Year}</div>
-              <div style="font-size:.62rem;color:var(--text3);margin-top:1px">Due: ${d.dueDate||d.Due_Date||''} · Principal: ${fmt(Number(d.principal||d.Principal_Snapshot||0))}</div>
+              <div style="font-family:var(--mono);font-size:.82rem;font-weight:700">${fmtMonth(d.monthYear||d.Month_Year)}</div>
+              <div style="font-size:.62rem;color:var(--text3);margin-top:1px">Due: ${fmtDate(d.dueDate||d.Due_Date||'')} · Principal: ${fmt(Number(d.principal||d.Principal_Snapshot||0))}</div>
               ${!isProjected&&penCharged>0?`<div style="font-size:.6rem;color:${penOwed>0?'var(--red)':'var(--text3)'};margin-top:1px;font-family:var(--mono)">${penNote}</div>`:''}
               ${isProjected?'<div style="font-size:.6rem;color:var(--purple);margin-top:1px;font-family:var(--mono)">📅 Projected — not yet due</div>':''}
             </div>
@@ -914,10 +921,12 @@ function openProfile(borrowerId){
   } else {
     txnEl.innerHTML=txns.map(t=>{
       const rawTs = String(t.Timestamp||'');
-      const d = new Date(rawTs);
-      // Display in Manila local time
-      const dateStr = isNaN(d) ? rawTs.slice(0,10) :
-        d.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric',timeZone:'Asia/Manila'});
+      // Extract date part directly from YYYY-MM-DD prefix to avoid timezone shift
+      const tsMatch = rawTs.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      const dateStr = tsMatch
+        ? new Date(Number(tsMatch[1]),Number(tsMatch[2])-1,Number(tsMatch[3]))
+            .toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})
+        : rawTs.slice(0,10);
       const isLoan=t.Txn_Type==='Loan';
       const breakdown=isLoan
         ? `Principal: ${fmt(Number(t.Alloc_Principal))}`
@@ -1182,6 +1191,41 @@ function showToast(msg,type){
 //  FORMAT
 // ═══════════════════════════════════════════════════════
 function _round(n){return Math.round(Number(n||0)*100)/100;}
+
+// Format YYYY-MM string to readable label e.g. "February 2026"
+function fmtMonth(val){
+  if(!val) return '';
+  const s = String(val);
+  // Handle YYYY-MM format
+  const m = s.match(/^(\d{4})-(\d{2})/);
+  if(m){
+    const d = new Date(Number(m[1]), Number(m[2])-1, 1);
+    return d.toLocaleDateString('en-PH',{month:'long',year:'numeric'});
+  }
+  // Handle ISO string — extract YYYY-MM first
+  const m2 = s.match(/(\d{4})-(\d{2})/);
+  if(m2){
+    const d = new Date(Number(m2[1]), Number(m2[2])-1, 1);
+    return d.toLocaleDateString('en-PH',{month:'long',year:'numeric'});
+  }
+  return s.slice(0,7);
+}
+
+// Format YYYY-MM-DD or ISO string to readable date in Manila time
+function fmtDate(val){
+  if(!val) return '';
+  const s = String(val);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m){
+    const d = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+    return d.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+  }
+  try{
+    const d = new Date(s);
+    if(!isNaN(d)) return d.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric',timeZone:'Asia/Manila'});
+  }catch(e){}
+  return s.slice(0,10);
+}
 function fmt(n){
   return '₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
