@@ -6,12 +6,18 @@
 <meta name="theme-color" content="#0a0e1a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  /* iOS Safari viewport height fix */
+  @supports (-webkit-touch-callout: none) {
+    #app { height: -webkit-fill-available; }
+  }
+</style>
 <meta name="apple-mobile-web-app-title" content="LoanBook">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>LoanBook</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 /* ── TOKENS ── */
 :root {
@@ -20,7 +26,7 @@
   --accent:#3b8fff; --accent-d:#1a6fd4;
   --green:#00d97e; --red:#ff4d6d; --yellow:#ffc233; --purple:#a78bfa;
   --text:#e8edf5; --text2:#8899b4; --text3:#4a5a75;
-  --mono:'Space Mono',monospace; --sans:'Syne',sans-serif;
+  --mono:'JetBrains Mono','Space Mono',monospace; --sans:'Inter',system-ui,-apple-system,sans-serif;
   --r:12px; --r-sm:8px;
   --safe-b:env(safe-area-inset-bottom,0px);
 }
@@ -33,7 +39,7 @@ input,textarea,select,button{font-family:inherit}
 button{cursor:pointer;border:none;background:none;color:inherit}
 
 /* ── SHELL ── */
-#app{display:flex;flex-direction:column;height:100dvh;height:100vh}
+#app{display:flex;flex-direction:column;height:100dvh;height:-webkit-fill-available;min-height:100vh}
 
 /* ── TOPBAR ── */
 #topbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:14px 20px 12px;background:var(--bg);border-bottom:1px solid var(--border);z-index:10}
@@ -51,23 +57,38 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 
 /* ── SCREENS ── */
 #screens{flex:1;overflow:hidden;position:relative}
-.screen{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:16px 16px calc(80px + var(--safe-b));display:none;opacity:0;transform:translateX(16px);transition:opacity .2s,transform .2s}
+.screen{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:16px 16px calc(72px + max(var(--safe-b),8px));display:none;opacity:0;transform:translateX(16px);transition:opacity .2s,transform .2s}
 .screen.active{display:block;opacity:1;transform:translateX(0)}
 .screen::-webkit-scrollbar{width:0}
 
 /* ── BOTTOM NAV ── */
-#bottomnav{flex-shrink:0;display:flex;background:var(--bg2);border-top:1px solid var(--border);padding-bottom:var(--safe-b);z-index:10}
-.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px 8px;color:var(--text3);font-size:.6rem;font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase;transition:color .2s;position:relative}
+#bottomnav{flex-shrink:0;display:flex;background:var(--bg2);border-top:1px solid var(--border);padding-bottom:max(var(--safe-b),4px);z-index:10;position:sticky;bottom:0;width:100%}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px 8px;color:var(--text3);font-size:.58rem;font-family:var(--sans);letter-spacing:.04em;text-transform:uppercase;font-weight:500;transition:color .2s;position:relative}
 .nav-btn svg{width:22px;height:22px;stroke-width:1.8}
 .nav-btn.active{color:var(--accent)}
 .nav-btn.active svg{filter:drop-shadow(0 0 6px rgba(59,143,255,.5))}
 .queue-badge{position:absolute;top:4px;right:calc(50% - 18px);background:var(--yellow);color:#020a14;font-size:.55rem;font-family:var(--mono);font-weight:700;min-width:16px;height:16px;border-radius:8px;display:none;align-items:center;justify-content:center;padding:0 4px}
 
+/* ── RESPONSIVE TYPOGRAPHY ── */
+/* Use tabular numbers throughout for financial data — prevents layout shift */
+.mono, [class*="mono"], font-family:var(--mono) { font-variant-numeric: tabular-nums; }
+/* Responsive font scaling — readable on all screen sizes */
+@media (max-width: 360px) {
+  :root { font-size: 14px; }
+  .stat-val { font-size: 1rem !important; }
+  .bname { font-size: .88rem !important; }
+}
+@media (min-width: 414px) {
+  .stat-val { font-size: 1.3rem; }
+}
+/* Prevent text overflow on amounts */
+.amount { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+
 /* ── TYPE HELPERS ── */
 .section-label{font-size:.62rem;font-family:var(--mono);letter-spacing:.18em;color:var(--text3);text-transform:uppercase;margin:20px 0 8px;display:flex;align-items:center;gap:8px}
 .section-label::after{content:'';flex:1;height:1px;background:var(--border)}
 .section-label:first-child{margin-top:4px}
-.page-title{font-size:1.4rem;font-weight:800;letter-spacing:-.02em;margin-bottom:2px}
+.page-title{font-size:1.4rem;font-weight:700;letter-spacing:-.01em;margin-bottom:2px}
 .page-sub{font-size:.85rem;color:var(--text2);margin-bottom:18px}
 
 /* ── BACK BTN ── */
@@ -152,7 +173,7 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 
 /* ── PROFILE HEADER ── */
 .profile-header{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:12px}
-.profile-name{font-size:1.3rem;font-weight:800;letter-spacing:-.02em;margin-bottom:6px}
+.profile-name{font-size:1.25rem;font-weight:700;letter-spacing:-.01em;margin-bottom:6px}
 .profile-badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .profile-bal-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .pbal{background:var(--panel2);border-radius:var(--r-sm);padding:10px 12px}
@@ -191,7 +212,7 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 .txn-breakdown{font-size:.67rem;font-family:var(--mono);color:var(--text2)}
 .txn-note{font-size:.67rem;font-family:var(--mono);color:var(--text3);margin-top:1px}
 .txn-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
-.txn-amount{font-family:var(--mono);font-weight:700;font-size:.88rem;white-space:nowrap}
+.txn-amount{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums;font-size:.88rem;white-space:nowrap}
 .txn-amount.loan{color:var(--red)}
 .txn-amount.payment{color:var(--green)}
 .txn-del-btn{font-size:.65rem;font-family:var(--mono);color:var(--text3);background:var(--panel2);border:1px solid var(--border2);border-radius:4px;padding:3px 7px;cursor:pointer;white-space:nowrap}
@@ -506,7 +527,7 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 // ═══════════════════════════════════════════════════════
 //  CONFIG — paste your deployed Apps Script URL here
 // ═══════════════════════════════════════════════════════
-const API_URL = 'https://script.google.com/macros/s/AKfycbx2GIi_1AKGOYVq38STKVkAd-xCrlvPHHK2oSKkf-sqcZfucxWkz7K7nthcbIgmsv-0/exec';
+const API_URL = 'YOUR_WEB_APP_URL_HERE';
 
 // ═══════════════════════════════════════════════════════
 //  STATE
