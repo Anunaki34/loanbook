@@ -586,22 +586,26 @@ async function syncData() {
   await flushQueue();
   
   try {
-    const resp = await fetch(API_URL + '?action=sync');
+    // 🔐 Include credentials (cookies) for cross-origin auth
+    const resp = await fetch(API_URL + '?action=sync', {
+      credentials: 'include'
+    });
     
-    // 🔐 Check if we got a login redirect (status 302 or HTML response)
-    const text = await resp.text();
-    if (text.includes('accounts.google.com') || text.includes('login')) {
-      // User is not logged in – redirect to login
-      showToast('Please log in with Google', 'error');
-      // Open login in a new tab OR redirect the whole page
-      window.open(API_URL, '_blank');
-      btn.classList.remove('syncing');
-      lbl.textContent = 'SYNC';
-      return;
+    // If response is not OK (e.g., 401), throw
+    if (!resp.ok) {
+      // Try to read error message from response
+      const text = await resp.text();
+      if (resp.status === 401 || text.includes('Unauthorized')) {
+        showToast('Not logged in – please click SYNC again to log in', 'error');
+        window.open(API_URL, '_blank');
+        btn.classList.remove('syncing');
+        lbl.textContent = 'SYNC';
+        return;
+      }
+      throw new Error('HTTP ' + resp.status);
     }
     
-    // Try to parse as JSON
-    const data = JSON.parse(text);
+    const data = await resp.json();
     if (data.error) throw new Error(data.error);
     
     DB.borrowers = data.borrowers || [];
@@ -635,17 +639,23 @@ async function flushQueue(){
 async function apiPost(payload) {
   if (isOnline()) {
     try {
-      const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
-      const text = await resp.text();
+      const resp = await fetch(API_URL, {
+        method: 'POST',
+        credentials: 'include',   // 🔐 This sends the Google session cookie
+        body: JSON.stringify(payload)
+      });
       
-      // Check if we got a login page
-      if (text.includes('accounts.google.com') || text.includes('login')) {
-        showToast('Please log in with Google', 'error');
-        window.open(API_URL, '_blank');
-        return { status: 'error', message: 'Login required' };
+      if (!resp.ok) {
+        const text = await resp.text();
+        if (resp.status === 401 || text.includes('Unauthorized')) {
+          showToast('Not logged in – please log in', 'error');
+          window.open(API_URL, '_blank');
+          return { status: 'error', message: 'Login required' };
+        }
+        throw new Error('HTTP ' + resp.status);
       }
       
-      const data = JSON.parse(text);
+      const data = await resp.json();
       if (data.error) throw new Error(data.error);
       return data;
     } catch (err) { throw err; }
