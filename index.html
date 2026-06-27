@@ -575,28 +575,49 @@ window.addEventListener('offline',updateNetworkUI);
 // ═══════════════════════════════════════════════════════
 //  SYNC
 // ═══════════════════════════════════════════════════════
-async function syncData(){
-  if(!isOnline()){showToast('Offline — cannot sync','error');return}
-  const btn=document.getElementById('sync-btn');
-  const lbl=document.getElementById('sync-label');
-  btn.classList.add('syncing'); lbl.textContent='SYNCING';
+async function syncData() {
+  if (!isOnline()) { showToast('Offline — cannot sync', 'error'); return; }
+  
+  const btn = document.getElementById('sync-btn');
+  const lbl = document.getElementById('sync-label');
+  btn.classList.add('syncing');
+  lbl.textContent = 'SYNCING';
+  
   await flushQueue();
-  try{
+  
+  try {
     const resp = await fetch(API_URL + '?action=sync');
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    const data=await resp.json();
-    if(data.error) throw new Error(data.error);
-    DB.borrowers        = data.borrowers        || [];
+    
+    // 🔐 Check if we got a login redirect (status 302 or HTML response)
+    const text = await resp.text();
+    if (text.includes('accounts.google.com') || text.includes('login')) {
+      // User is not logged in – redirect to login
+      showToast('Please log in with Google', 'error');
+      // Open login in a new tab OR redirect the whole page
+      window.open(API_URL, '_blank');
+      btn.classList.remove('syncing');
+      lbl.textContent = 'SYNC';
+      return;
+    }
+    
+    // Try to parse as JSON
+    const data = JSON.parse(text);
+    if (data.error) throw new Error(data.error);
+    
+    DB.borrowers = data.borrowers || [];
     DB.dues_by_borrower = data.dues_by_borrower || {};
-    DB.transactions     = data.transactions     || [];
-    DB.last_sync    = new Date().toISOString();
-    await idbSet('DB',DB);
+    DB.transactions = data.transactions || [];
+    DB.last_sync = new Date().toISOString();
+    await idbSet('DB', DB);
     renderDashboard();
-    showToast('Synced ✓','success');
-  }catch(err){showToast('Sync failed: '+err.message,'error')}
+    showToast('Synced ✓', 'success');
+  } catch (err) {
+    showToast('Sync failed: ' + err.message, 'error');
+  }
+  
   btn.classList.remove('syncing');
   btn.classList.add('online');
-  lbl.textContent='SYNC';
+  lbl.textContent = 'SYNC';
 }
 
 async function flushQueue(){
@@ -611,18 +632,27 @@ async function flushQueue(){
   updateQueueBadge();
 }
 
-async function apiPost(payload){
-  if(isOnline()){
-    try{
-      const resp=await fetch(API_URL,{method:'POST',body:JSON.stringify(payload)});
-      const data=await resp.json();
-      if(data.error) throw new Error(data.error);
+async function apiPost(payload) {
+  if (isOnline()) {
+    try {
+      const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+      const text = await resp.text();
+      
+      // Check if we got a login page
+      if (text.includes('accounts.google.com') || text.includes('login')) {
+        showToast('Please log in with Google', 'error');
+        window.open(API_URL, '_blank');
+        return { status: 'error', message: 'Login required' };
+      }
+      
+      const data = JSON.parse(text);
+      if (data.error) throw new Error(data.error);
       return data;
-    }catch(err){throw err}
+    } catch (err) { throw err; }
   }
-  await queueAdd({payload});
+  await queueAdd({ payload });
   updateQueueBadge();
-  return {status:'queued',message:'Saved offline. Will sync when connected.'};
+  return { status: 'queued', message: 'Saved offline. Will sync when connected.' };
 }
 
 async function updateQueueBadge(){
