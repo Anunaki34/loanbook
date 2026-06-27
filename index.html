@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src="https://accounts.google.com/gsi/client"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0a0e1a">
@@ -271,6 +272,26 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 
 <!-- SCREENS -->
 <div id="screens">
+  <!-- GOOGLE LOGIN SCREEN -->
+<div class="screen" id="screen-login">
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:80vh;text-align:center;padding:20px;">
+    <div style="font-size:2rem;margin-bottom:16px;">🔐</div>
+    <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:8px;">Welcome to LoanBook</h2>
+    <p style="color:var(--text2);margin-bottom:24px;">Sign in with your Google account to continue.</p>
+    <div id="g_id_onload"
+         data-client_id="974345330594-t41h5181re2sue4dgsurdojsvoain499.apps.googleusercontent.com"
+         data-callback="handleCredentialResponse">
+    </div>
+    <div class="g_id_signin"
+         data-type="standard"
+         data-size="large"
+         data-theme="dark"
+         data-text="sign_in_with"
+         data-shape="rectangular"
+         data-logo_alignment="left">
+    </div>
+  </div>
+</div>
 
   <!-- ══════════════════════════════════════
        DASHBOARD
@@ -1294,7 +1315,32 @@ function fmt(n){
 // ═══════════════════════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════════════════════
-async function boot(){
+// ── GOOGLE LOGIN HANDLER ──────────────────────────────
+function handleCredentialResponse(response) {
+  const token = response.credential;
+  verifyTokenWithBackend(token);
+}
+
+async function verifyTokenWithBackend(token) {
+  try {
+    const resp = await fetch(API_URL + '?action=verify', {
+      method: 'POST',
+      body: JSON.stringify({ token: token })
+    });
+    const data = await resp.json();
+    if (data.valid) {
+      // Login successful – hide login screen, show dashboard
+      document.getElementById('screen-login').classList.remove('active');
+      document.getElementById('screen-dashboard').classList.add('active');
+      syncData();
+    } else {
+      alert('Unauthorized: ' + data.error);
+    }
+  } catch (err) {
+    alert('Login failed: ' + err.message);
+  }
+}
+  async function boot(){
   await openIDB();
   const cached=await idbGet('DB');
   if(cached){
