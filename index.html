@@ -1323,10 +1323,10 @@ function handleCredentialResponse(response) {
 
 async function verifyTokenWithBackend(token) {
   try {
-    const resp = await fetch(API_URL + '?action=verify', {
-      method: 'POST',
-      body: JSON.stringify({ token: token })
-    });
+const resp = await fetch(API_URL, {
+  method: 'POST',
+  body: JSON.stringify({ action: 'verify', token: token })
+});
     const data = await resp.json();
     if (data.valid) {
       // Login successful – hide login screen, show dashboard
