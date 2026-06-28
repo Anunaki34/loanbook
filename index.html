@@ -608,10 +608,7 @@ async function syncData() {
   
   try {
     // 🔐 Include credentials (cookies) for cross-origin auth
-const resp = await fetch(API_URL + '?action=sync', {
-  credentials: 'include',
-  cache: 'no-store'
-});
+const resp = await fetch(API_URL + '?action=sync&token=' + window.idToken);
     
     // If response is not OK (e.g., 401), throw
     if (!resp.ok) {
@@ -659,6 +656,7 @@ async function flushQueue(){
 }
 
 async function apiPost(payload) {
+  payload.token = window.idToken;
   if (isOnline()) {
     try {
       const resp = await fetch(API_URL, {
