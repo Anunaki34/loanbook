@@ -264,7 +264,7 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 <!-- TOPBAR -->
 <div id="topbar">
   <div class="topbar-logo">LOAN<span>BOOK</span></div>
-  <button class="sync-btn" id="sync-btn" onclick="syncData()">
+  <button class="sync-btn" id="sync-btn" onclick="()">
     <div class="dot"></div>
     <span id="sync-label">SYNC</span>
   </button>
@@ -608,9 +608,10 @@ async function syncData() {
   
   try {
     // 🔐 Include credentials (cookies) for cross-origin auth
-    const resp = await fetch(API_URL + '?action=sync', {
-      credentials: 'include'
-    });
+const resp = await fetch(API_URL + '?action=sync', {
+  credentials: 'include',
+  cache: 'no-store'
+});
     
     // If response is not OK (e.g., 401), throw
     if (!resp.ok) {
