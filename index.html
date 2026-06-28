@@ -1318,19 +1318,19 @@ function fmt(n){
 // ═══════════════════════════════════════════════════════
 // ── GOOGLE LOGIN HANDLER ──────────────────────────────
 function handleCredentialResponse(response) {
-  const token = response.credential;
-  verifyTokenWithBackend(token);
+  // Store the token globally
+  window.idToken = response.credential;
+  verifyTokenWithBackend(response.credential);
 }
 
 async function verifyTokenWithBackend(token) {
   try {
-const resp = await fetch(API_URL, {
-  method: 'POST',
-  body: JSON.stringify({ action: 'verify', token: token })
-});
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'verify', token: token })
+    });
     const data = await resp.json();
     if (data.valid) {
-      // Login successful – hide login screen, show dashboard
       document.getElementById('screen-login').classList.remove('active');
       document.getElementById('screen-dashboard').classList.add('active');
       syncData();
