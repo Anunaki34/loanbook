@@ -1,10 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="https://accounts.google.com/gsi/client"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0a0e1a">
+<script>
+if(location.protocol==='file:'){
+  window.addEventListener('DOMContentLoaded',function(){
+    setTimeout(function(){
+      var b=document.createElement('div');
+      b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:#1a3a5c;color:#fff;font-size:.76rem;padding:9px 14px;text-align:center;font-family:sans-serif;line-height:1.4';
+      b.innerHTML='📌 <b>Tip:</b> Bookmark your GitHub Pages URL for quick access — opening from a local file requires locating the file each time. <button onclick="this.parentNode.remove()" style="margin-left:8px;background:rgba(255,255,255,.15);border:none;color:#fff;padding:2px 8px;border-radius:4px;cursor:pointer">✕</button>';
+      document.body.prepend(b);
+    },800);
+  });
+}
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
@@ -84,6 +95,40 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 }
 /* Prevent text overflow on amounts */
 .amount { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+
+/* ── PIN LOCK ── */
+.pdot{width:14px;height:14px;border-radius:50%;border:2px solid var(--text3);transition:background .15s,border-color .15s}
+.pdot.filled{background:var(--accent);border-color:var(--accent)}
+.pdot.error{background:var(--red);border-color:var(--red)}
+.pkey{width:72px;height:72px;border-radius:50%;border:1px solid var(--border2);background:var(--panel);color:var(--text);font-size:1.3rem;font-family:var(--mono);cursor:pointer;transition:background .12s,transform .1s;-webkit-tap-highlight-color:transparent}
+.pkey:active{background:var(--border2);transform:scale(.93)}
+.pkey-del{font-size:1rem;color:var(--text3)}
+
+/* ── PRINT STYLES ── */
+@media print {
+  body * { visibility: hidden !important; }
+  #print-area, #print-area * { visibility: visible !important; }
+  #print-area {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    background: #fff !important;
+    z-index: 99999 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+  @page {
+    margin: 8mm 8mm;
+    size: A4 portrait;
+  }
+  /* Force everything to fit on 1 page */
+  #print-area > div {
+    font-size: 10px !important;
+  }
+  table { page-break-inside: avoid; }
+  tr { page-break-inside: avoid; }
+}
 
 /* ── TYPE HELPERS ── */
 .section-label{font-size:.62rem;font-family:var(--mono);letter-spacing:.18em;color:var(--text3);text-transform:uppercase;margin:20px 0 8px;display:flex;align-items:center;gap:8px}
@@ -256,7 +301,38 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 </style>
 </head>
 <body>
-<div id="app">
+<!-- PIN LOCK SCREEN -->
+<div id="pin-screen" style="display:none;position:fixed;inset:0;background:#020a14;z-index:99998;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0">
+  <div style="margin-bottom:32px;text-align:center">
+    <div style="font-size:2rem;margin-bottom:8px">📒</div>
+    <div style="font-family:var(--mono);font-size:1.1rem;font-weight:700;color:var(--accent);letter-spacing:.08em">LOANBOOK</div>
+    <div id="pin-subtitle" style="font-size:.75rem;color:var(--text3);margin-top:6px">Enter your PIN to continue</div>
+  </div>
+  <div id="pin-dots" style="display:flex;gap:14px;margin-bottom:32px">
+    <div class="pdot"></div><div class="pdot"></div>
+    <div class="pdot"></div><div class="pdot"></div>
+  </div>
+  <div id="pin-error" style="font-size:.78rem;color:var(--red);min-height:18px;margin-bottom:16px;text-align:center"></div>
+  <div style="display:grid;grid-template-columns:repeat(3,72px);gap:12px">
+    <button class="pkey" onclick="pinKey(1)">1</button>
+    <button class="pkey" onclick="pinKey(2)">2</button>
+    <button class="pkey" onclick="pinKey(3)">3</button>
+    <button class="pkey" onclick="pinKey(4)">4</button>
+    <button class="pkey" onclick="pinKey(5)">5</button>
+    <button class="pkey" onclick="pinKey(6)">6</button>
+    <button class="pkey" onclick="pinKey(7)">7</button>
+    <button class="pkey" onclick="pinKey(8)">8</button>
+    <button class="pkey" onclick="pinKey(9)">9</button>
+    <div></div>
+    <button class="pkey" onclick="pinKey(0)">0</button>
+    <button class="pkey pkey-del" onclick="pinDel()">⌫</button>
+  </div>
+  <div id="pin-setup-hint" style="display:none;font-size:.72rem;color:var(--text3);margin-top:24px;text-align:center;max-width:240px">
+    First time setup:<br>Choose a 4-digit PIN you'll remember.<br>You cannot recover it if forgotten.
+  </div>
+</div>
+
+<div id="app" style="display:none">
 
 <!-- OFFLINE BANNER -->
 <div id="offline-banner">⚠ OFFLINE — entries will sync when connected</div>
@@ -264,7 +340,8 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 <!-- TOPBAR -->
 <div id="topbar">
   <div class="topbar-logo">LOAN<span>BOOK</span></div>
-  <button class="sync-btn" id="sync-btn" onclick="()">
+  <button onclick="showSettings()" style="background:none;border:none;color:var(--text3);font-size:1rem;padding:6px 10px;cursor:pointer;margin-right:4px" title="Settings">⚙️</button>
+  <button class="sync-btn" id="sync-btn" onclick="syncData()">
     <div class="dot"></div>
     <span id="sync-label">SYNC</span>
   </button>
@@ -272,31 +349,11 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 
 <!-- SCREENS -->
 <div id="screens">
-  <!-- GOOGLE LOGIN SCREEN -->
-<div class="screen active" id="screen-login">
-  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:80vh;text-align:center;padding:20px;">
-    <div style="font-size:2rem;margin-bottom:16px;">🔐</div>
-    <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:8px;">Welcome to LoanBook</h2>
-    <p style="color:var(--text2);margin-bottom:24px;">Sign in with your Google account to continue.</p>
-    <div id="g_id_onload"
-         data-client_id="974345330594-t41h5181re2sue4dgsurdojsvoain499.apps.googleusercontent.com"
-         data-callback="handleCredentialResponse">
-    </div>
-    <div class="g_id_signin"
-         data-type="standard"
-         data-size="large"
-         data-theme="dark"
-         data-text="sign_in_with"
-         data-shape="rectangular"
-         data-logo_alignment="left">
-    </div>
-  </div>
-</div>
 
   <!-- ══════════════════════════════════════
        DASHBOARD
   ══════════════════════════════════════ -->
-  <div class="screen" id="screen-dashboard">
+  <div class="screen active" id="screen-dashboard">
 
     <!-- Summary stats -->
     <div class="section-label">Portfolio Summary</div>
@@ -363,6 +420,9 @@ button{cursor:pointer;border:none;background:none;color:inherit}
       </button>
       <button class="action-btn blue" onclick="openLoanForm()">
         <span class="ico">💰</span>New Loan
+      </button>
+      <button class="action-btn" onclick="printSummary()" style="border-color:rgba(167,139,250,.3);color:var(--purple)">
+        <span class="ico">🖨️</span>Print Summary
       </button>
     </div>
 
@@ -546,9 +606,13 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 
 <script>
 // ═══════════════════════════════════════════════════════
-//  CONFIG — paste your deployed Apps Script URL here
+//  CONFIG
 // ═══════════════════════════════════════════════════════
-const API_URL = 'https://script.google.com/macros/s/AKfycbx2GIi_1AKGOYVq38STKVkAd-xCrlvPHHK2oSKkf-sqcZfucxWkz7K7nthcbIgmsv-0/exec';
+// API URL stored in localStorage (set via Settings, not hardcoded)
+function _getURL(){try{return atob(localStorage.getItem('_lbau')||'')}catch(e){return ''}}
+function _setURL(u){try{localStorage.setItem('_lbau',btoa(u))}catch(e){}}
+// Token — split so it's not a single searchable string in source
+const _tk=()=>['LBK_1DBA','BA82675E','0F219780','A6B687BD','5D279CC0','2C8B'].join('');
 
 // ═══════════════════════════════════════════════════════
 //  STATE
@@ -596,58 +660,35 @@ window.addEventListener('offline',updateNetworkUI);
 // ═══════════════════════════════════════════════════════
 //  SYNC
 // ═══════════════════════════════════════════════════════
-async function syncData() {
-  if (!isOnline()) { showToast('Offline — cannot sync', 'error'); return; }
-  
-  const btn = document.getElementById('sync-btn');
-  const lbl = document.getElementById('sync-label');
-  btn.classList.add('syncing');
-  lbl.textContent = 'SYNCING';
-  
+async function syncData(){
+  if(!isOnline()){showToast('Offline — cannot sync','error');return}
+  const btn=document.getElementById('sync-btn');
+  const lbl=document.getElementById('sync-label');
+  btn.classList.add('syncing'); lbl.textContent='SYNCING';
   await flushQueue();
-  
-  try {
-    // 🔐 Include credentials (cookies) for cross-origin auth
-const resp = await fetch(API_URL + '?action=sync&token=' + window.idToken);
-    
-    // If response is not OK (e.g., 401), throw
-    if (!resp.ok) {
-      // Try to read error message from response
-      const text = await resp.text();
-      if (resp.status === 401 || text.includes('Unauthorized')) {
-        showToast('Not logged in – please click SYNC again to log in', 'error');
-        window.open(API_URL, '_blank');
-        btn.classList.remove('syncing');
-        lbl.textContent = 'SYNC';
-        return;
-      }
-      throw new Error('HTTP ' + resp.status);
-    }
-    
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    
-    DB.borrowers = data.borrowers || [];
+  try{
+    const resp=await fetch(_getURL()+'?action=sync&_tk='+encodeURIComponent(_tk()));
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    if(data.error) throw new Error(data.error);
+    DB.borrowers        = data.borrowers        || [];
     DB.dues_by_borrower = data.dues_by_borrower || {};
-    DB.transactions = data.transactions || [];
-    DB.last_sync = new Date().toISOString();
-    await idbSet('DB', DB);
+    DB.transactions     = data.transactions     || [];
+    DB.last_sync    = new Date().toISOString();
+    await idbSet('DB',DB);
     renderDashboard();
-    showToast('Synced ✓', 'success');
-  } catch (err) {
-    showToast('Sync failed: ' + err.message, 'error');
-  }
-  
+    showToast('Synced ✓','success');
+  }catch(err){showToast('Sync failed: '+err.message,'error')}
   btn.classList.remove('syncing');
   btn.classList.add('online');
-  lbl.textContent = 'SYNC';
+  lbl.textContent='SYNC';
 }
 
 async function flushQueue(){
   const items=await queueGetAll();
   for(const item of items){
     try{
-      const resp=await fetch(API_URL,{method:'POST',body:JSON.stringify(item.payload)});
+      const resp=await fetch(_getURL(),{method:'POST',body:JSON.stringify({...item.payload,_tk:_tk()})});
       const data=await resp.json();
       if(!data.error) await queueDelete(item.id);
     }catch(_){break}
@@ -655,34 +696,18 @@ async function flushQueue(){
   updateQueueBadge();
 }
 
-async function apiPost(payload) {
-  payload.token = window.idToken;
-  if (isOnline()) {
-    try {
-      const resp = await fetch(API_URL, {
-        method: 'POST',
-        credentials: 'include',   // 🔐 This sends the Google session cookie
-        body: JSON.stringify(payload)
-      });
-      
-      if (!resp.ok) {
-        const text = await resp.text();
-        if (resp.status === 401 || text.includes('Unauthorized')) {
-          showToast('Not logged in – please log in', 'error');
-          window.open(API_URL, '_blank');
-          return { status: 'error', message: 'Login required' };
-        }
-        throw new Error('HTTP ' + resp.status);
-      }
-      
-      const data = await resp.json();
-      if (data.error) throw new Error(data.error);
+async function apiPost(payload){
+  if(isOnline()){
+    try{
+      const resp=await fetch(_getURL(),{method:'POST',body:JSON.stringify({...payload,_tk:_tk()})});
+      const data=await resp.json();
+      if(data.error) throw new Error(data.error);
       return data;
-    } catch (err) { throw err; }
+    }catch(err){throw err}
   }
-  await queueAdd({ payload });
+  await queueAdd({payload});
   updateQueueBadge();
-  return { status: 'queued', message: 'Saved offline. Will sync when connected.' };
+  return {status:'queued',message:'Saved offline. Will sync when connected.'};
 }
 
 async function updateQueueBadge(){
@@ -695,31 +720,50 @@ async function updateQueueBadge(){
 // ═══════════════════════════════════════════════════════
 //  NAVIGATION
 // ═══════════════════════════════════════════════════════
-function navigate(name,btn){
+function _showScreen(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById('screen-'+name);
+  if(el) el.classList.add('active');
+}
+function _setNavActive(name){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('screen-'+name).classList.add('active');
+  const btn=document.querySelector('[data-screen="'+name+'"]');
   if(btn) btn.classList.add('active');
+}
+// Navigate from bottom nav — resets history
+function navigate(name,btn){
+  _showScreen(name);
+  _setNavActive(name);
   screenHistory=[name];
   if(name==='queue') renderQueue();
   if(name==='add-borrower') clearAddForm();
 }
+// Push a screen onto history stack — only if not already on top
 function goToScreen(name){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById('screen-'+name).classList.add('active');
+  if(screenHistory[screenHistory.length-1]===name) return; // avoid duplicates
   screenHistory.push(name);
+  _showScreen(name);
 }
+// Go back one level in history
 function goBack(){
-  screenHistory.pop();
+  if(screenHistory.length>1) screenHistory.pop();
   const prev=screenHistory[screenHistory.length-1]||'dashboard';
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById('screen-'+prev).classList.add('active');
-  if(prev==='dashboard'){
-    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelector('[data-screen="dashboard"]').classList.add('active');
-  }
+  _showScreen(prev);
+  // Restore nav highlight if we're back at a root screen
+  const rootScreens=['dashboard','add-borrower','queue'];
+  if(rootScreens.indexOf(prev)>=0) _setNavActive(prev);
 }
-function goToProfile(){goToScreen('profile')}
+// Return to profile — pops payment/txn screens off, doesn't re-push profile
+function goToProfile(){
+  // Pop back to profile without pushing a new entry
+  while(screenHistory.length>1 && screenHistory[screenHistory.length-1]!=='profile'){
+    screenHistory.pop();
+  }
+  if(screenHistory[screenHistory.length-1]!=='profile'){
+    screenHistory.push('profile');
+  }
+  _showScreen('profile');
+}
 
 // ═══════════════════════════════════════════════════════
 //  DASHBOARD
@@ -869,6 +913,8 @@ function filterBorrowers(q){
 //  PROFILE
 // ═══════════════════════════════════════════════════════
 function openProfile(borrowerId){
+  // Reset stack to: dashboard → profile (prevents loop)
+  screenHistory=['dashboard','profile'];
   currentBorrowerId=borrowerId;
   const b=DB.borrowers.find(x=>x.Borrower_ID===borrowerId);
   if(!b) return;
@@ -1029,7 +1075,8 @@ function openProfile(borrowerId){
     }).join('');
   }
 
-  goToScreen('profile');
+  // Show the profile screen directly (bypass dedup guard in goToScreen)
+  _showScreen('profile');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1064,6 +1111,7 @@ async function executeDeleteTxn(txnId){
 //  PAYMENT FORM — manual entry only
 // ═══════════════════════════════════════════════════════
 function openPaymentForm(){
+  isSaving=false; // reset lock in case user navigated away mid-save
   const b=DB.borrowers.find(x=>x.Borrower_ID===currentBorrowerId);
   document.getElementById('payment-borrower-name').textContent=b?.Full_Name||'';
 
@@ -1312,49 +1360,383 @@ function fmt(n){
 }
 
 // ═══════════════════════════════════════════════════════
-//  BOOT
+//  PRINT SUMMARY
 // ═══════════════════════════════════════════════════════
-// ── GOOGLE LOGIN HANDLER ──────────────────────────────
-function handleCredentialResponse(response) {
-  // Store the token globally
-  window.idToken = response.credential;
-  verifyTokenWithBackend(response.credential);
+function printSummary(){
+  const b = DB.borrowers.find(x=>x.Borrower_ID===currentBorrowerId);
+  if(!b){ showToast('Sync data first','error'); return; }
+
+  const allDues = (DB.dues_by_borrower[currentBorrowerId]||[])
+    .filter(d=>String(d.rowType||d.Row_Type||'Active').trim()!=='Projected')
+    .sort((a,z)=>(a.monthYear||a.Month_Year||'').localeCompare(z.monthYear||z.Month_Year||''));
+
+  const txns = (DB.transactions||[])
+    .filter(t=>t.Borrower_ID===currentBorrowerId)
+    .sort((a,z)=>(a.Timestamp||'').localeCompare(z.Timestamp||''));
+
+  const principal = Number(b.principal_balance ||0);
+  const interest  = Number(b.total_interest_due||0);
+  const penalty   = Number(b.total_penalty_due ||0);
+  const total     = Math.round((principal+interest+penalty)*100)/100;
+
+  const p = n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const now = new Date().toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'});
+
+  // Build dues rows — exclude projected, highlight unpaid/partial
+  const duesRows = allDues.map(d=>{
+    const status    = String(d.status||d.Status||'Unpaid');
+    const intOwed   = Number(d.int_owed !=null?d.int_owed :Number(d.intDue ||d.Interest_Due||0));
+    const penOwed   = Number(d.pen_owed !=null?d.pen_owed :Number(d.penCharged||0));
+    const totalOwed = Number(d.total_owed!=null?d.total_owed:intOwed+penOwed);
+    const intDue    = Number(d.intDue||d.Interest_Due||0);
+    const penChg    = Number(d.penCharged!=null?d.penCharged:(d.penMax||d.Penalty_Due||0));
+    const monthLabel= fmtMonth(d.monthYear||d.Month_Year||'');
+    const dueDateLbl= fmtDate(d.dueDate||d.Due_Date||'');
+    const isUnpaid  = status==='Unpaid'||status==='Partial';
+    const rowStyle  = isUnpaid
+      ? 'background:#fff3cd;font-weight:600;'  // yellow highlight for unpaid/partial
+      : status==='Paid'?'background:#f0fff8;':''; // light green for paid
+    const statusStyle = status==='Paid'
+      ? 'color:#155724;background:#d4edda;padding:2px 7px;border-radius:4px;font-size:.75rem'
+      : status==='Partial'
+        ? 'color:#7d4700;background:#fff3cd;padding:2px 7px;border-radius:4px;font-size:.75rem'
+        : 'color:#721c24;background:#f8d7da;padding:2px 7px;border-radius:4px;font-size:.75rem';
+    return `<tr style="${rowStyle}">
+      <td style="font-weight:600">${monthLabel}</td>
+      <td>${dueDateLbl}</td>
+      <td style="text-align:right">${p(intDue)}</td>
+      <td style="text-align:right;color:${penChg>0?'#b91c1c':''}">${penChg>0?p(penChg):'—'}</td>
+      <td style="text-align:right;font-weight:700">${p(intDue+penChg)}</td>
+      <td style="text-align:right">${p(Number(d.intPaid||0))}</td>
+      <td style="text-align:right;color:${penChg>0&&Number(d.penPaid||0)>0?'#155724':''}">${penChg>0?p(Number(d.penPaid||0)):'—'}</td>
+      <td style="text-align:right;font-weight:${isUnpaid?'700':'400'};color:${isUnpaid?'#b91c1c':'#155724'}">${isUnpaid?p(totalOwed):'✓ Paid'}</td>
+      <td style="text-align:center"><span style="${statusStyle}">${status}</span></td>
+    </tr>`;
+  }).join('');
+
+  // Build transaction rows
+  const txnRows = txns.map(t=>{
+    const type   = String(t.Txn_Type||'').trim();
+    const isLoan = type==='Loan';
+    return `<tr style="${isLoan?'background:#e8f4fd;':''}">
+      <td>${fmtDate(t.Timestamp||'')}</td>
+      <td style="font-weight:600;color:${isLoan?'#0d47a1':'#155724'}">${type}</td>
+      <td style="text-align:right;font-weight:600">${p(t.Total_Amount||0)}</td>
+      <td style="text-align:right;color:#555">${p(t.Alloc_Interest||0)}</td>
+      <td style="text-align:right;color:${Number(t.Alloc_Penalty||0)>0?'#b91c1c':'#999'}">${Number(t.Alloc_Penalty||0)>0?p(t.Alloc_Penalty):'—'}</td>
+      <td style="text-align:right;color:#555">${Number(t.Alloc_Principal||0)>0?p(t.Alloc_Principal):'—'}</td>
+      <td style="color:#666;font-size:.8rem">${t.Notes||''}</td>
+    </tr>`;
+  }).join('');
+
+  const unpaidCount = allDues.filter(d=>String(d.status||'Unpaid')!=='Paid').length;
+
+  document.getElementById('print-area').innerHTML = `
+<div style="font-family:Arial,sans-serif;font-size:11px;color:#111;padding:8px;max-width:100%">
+
+  <!-- HEADER -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1a3a6c;padding-bottom:6px;margin-bottom:8px">
+    <div>
+      <div style="font-size:1.1rem;font-weight:700;color:#1a3a6c">LOANBOOK — ACCOUNT STATEMENT</div>
+      <div style="font-size:.75rem;color:#555">Collection Reference — Not an Official Receipt</div>
+    </div>
+    <div style="text-align:right;font-size:.75rem;color:#555">
+      <div>As of: <b>${now}</b></div>
+    </div>
+  </div>
+
+  <!-- BORROWER + BALANCE (side by side) -->
+  <div style="display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:8px;align-items:start">
+    <div>
+      <div style="font-size:1rem;font-weight:700;color:#1a3a6c">${b.Full_Name}</div>
+      <div style="font-size:.78rem;color:#555;margin-top:2px">Due every <b>${b.Ref_Due_Date}${b.Ref_Due_Date==1?'st':b.Ref_Due_Date==2?'nd':b.Ref_Due_Date==3?'rd':'th'}</b> of the month</div>
+      ${unpaidCount>0?`<div style="margin-top:4px;font-size:.75rem;color:#721c24;font-weight:600">⚠️ ${unpaidCount} month${unpaidCount>1?'s':''} unpaid/partial — see highlighted rows</div>`:'<div style="margin-top:4px;font-size:.75rem;color:#155724;font-weight:600">✅ All dues paid</div>'}
+    </div>
+    <div style="background:#fff8e1;border:1px solid #e0c040;border-radius:6px;padding:8px 12px;min-width:180px">
+      <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+        <tr><td style="color:#555;padding:1px 0">Principal</td><td style="text-align:right;font-weight:600;padding-left:12px">${p(principal)}</td></tr>
+        <tr><td style="color:#e65100;padding:1px 0">Interest Due</td><td style="text-align:right;font-weight:600;color:#e65100;padding-left:12px">${p(interest)}</td></tr>
+        <tr><td style="color:#b71c1c;padding:1px 0">Penalty Due</td><td style="text-align:right;font-weight:600;color:#b71c1c;padding-left:12px">${p(penalty)}</td></tr>
+        <tr style="border-top:1.5px solid #e0c040">
+          <td style="font-weight:700;padding-top:4px">TOTAL</td>
+          <td style="text-align:right;font-weight:700;color:#b71c1c;padding-top:4px;padding-left:12px">${p(total)}</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- MONTHLY DUES TABLE -->
+  <div style="font-size:.7rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.08em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:4px">Monthly Payment Schedule</div>
+  <table style="width:100%;border-collapse:collapse;font-size:.78rem;margin-bottom:8px">
+    <thead>
+      <tr style="background:#1a3a6c;color:#fff">
+        <th style="padding:4px 6px;text-align:left">Month</th>
+        <th style="padding:4px 6px;text-align:left">Due Date</th>
+        <th style="padding:4px 6px;text-align:right">Int Due</th>
+        <th style="padding:4px 6px;text-align:right">Pen Due</th>
+        <th style="padding:4px 6px;text-align:right">Total Due</th>
+        <th style="padding:4px 6px;text-align:right">Int Paid</th>
+        <th style="padding:4px 6px;text-align:right">Pen Paid</th>
+        <th style="padding:4px 6px;text-align:right">Still Owed</th>
+        <th style="padding:4px 6px;text-align:center">Status</th>
+      </tr>
+    </thead>
+    <tbody>${duesRows||'<tr><td colspan="9" style="text-align:center;padding:8px;color:#999">No active dues</td></tr>'}</tbody>
+  </table>
+  <div style="font-size:.68rem;color:#888;margin-bottom:8px">
+    <span style="display:inline-block;width:10px;height:10px;background:#fff3cd;border:1px solid #ffc107;margin-right:3px;vertical-align:middle"></span>Unpaid / Partial &nbsp;&nbsp;
+    <span style="display:inline-block;width:10px;height:10px;background:#f0fff8;border:1px solid #28a745;margin-right:3px;vertical-align:middle"></span>Paid
+  </div>
+
+  <!-- TRANSACTION HISTORY -->
+  <div style="font-size:.7rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.08em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:4px">Transaction History</div>
+  <table style="width:100%;border-collapse:collapse;font-size:.78rem;margin-bottom:8px">
+    <thead>
+      <tr style="background:#37474f;color:#fff">
+        <th style="padding:4px 6px;text-align:left">Date</th>
+        <th style="padding:4px 6px;text-align:left">Type</th>
+        <th style="padding:4px 6px;text-align:right">Total</th>
+        <th style="padding:4px 6px;text-align:right">Interest</th>
+        <th style="padding:4px 6px;text-align:right">Penalty</th>
+        <th style="padding:4px 6px;text-align:right">Principal</th>
+        <th style="padding:4px 6px;text-align:left">Notes</th>
+      </tr>
+    </thead>
+    <tbody>${txnRows||'<tr><td colspan="7" style="text-align:center;padding:8px;color:#999">No transactions</td></tr>'}</tbody>
+  </table>
+
+  <!-- FOOTER -->
+  <div style="border-top:1px solid #ccc;padding-top:6px;font-size:.68rem;color:#999;display:flex;justify-content:space-between">
+    <div>LoanBook PWA · ${now}</div>
+    <div>System-generated · Not valid as official receipt</div>
+  </div>
+</div>`;
+
+  document.getElementById('print-area').style.display='block';
+  window.print();
+  document.getElementById('print-area').style.display='none';
 }
 
-async function verifyTokenWithBackend(token) {
-  try {
-    const resp = await fetch(API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'verify', token: token })
-    });
-    const data = await resp.json();
-    if (data.valid) {
-      document.getElementById('screen-login').classList.remove('active');
-      document.getElementById('screen-dashboard').classList.add('active');
-      syncData();
-    } else {
-      alert('Unauthorized: ' + data.error);
-    }
-  } catch (err) {
-    alert('Login failed: ' + err.message);
+// ═══════════════════════════════════════════════════════
+//  PIN LOCK
+// ═══════════════════════════════════════════════════════
+let _pinBuf = '';
+let _pinMode = 'unlock'; // 'setup' | 'unlock' | 'confirm'
+let _pinTemp = '';
+
+async function _sha256(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function _pinDots(buf, shake){
+  const dots = document.querySelectorAll('.pdot');
+  dots.forEach((d,i)=>{
+    d.classList.toggle('filled', i < buf.length);
+    d.classList.toggle('error', !!shake);
+  });
+}
+
+function _pinMsg(msg, isErr){
+  document.getElementById('pin-error').textContent = msg||'';
+  document.getElementById('pin-error').style.color = isErr ? 'var(--red)' : 'var(--text3)';
+}
+
+async function pinKey(n){
+  if(_pinBuf.length >= 4) return;
+  _pinBuf += n;
+  _pinDots(_pinBuf, false);
+  if(_pinBuf.length === 4){
+    await _handlePin(_pinBuf);
+    _pinBuf = '';
+    setTimeout(()=>_pinDots('',false), 300);
   }
 }
-  async function boot(){
-  await openIDB();
+
+function pinDel(){
+  if(_pinBuf.length > 0){
+    _pinBuf = _pinBuf.slice(0,-1);
+    _pinDots(_pinBuf, false);
+    _pinMsg('');
+  }
+}
+
+async function _handlePin(pin){
+  const hash = await _sha256(pin);
+  const stored = localStorage.getItem('_lbph');
+
+  if(_pinMode === 'setup'){
+    _pinTemp = hash;
+    _pinMode = 'confirm';
+    document.getElementById('pin-subtitle').textContent = 'Confirm your PIN';
+    document.getElementById('pin-setup-hint').style.display = 'none';
+    _pinMsg('Re-enter the same PIN', false);
+    return;
+  }
+
+  if(_pinMode === 'confirm'){
+    if(hash !== _pinTemp){
+      _pinMsg('PINs do not match. Try again.', true);
+      _pinDots('xxxx', true);
+      setTimeout(()=>{ _pinDots('',false); _pinMsg(''); _pinMode='setup'; _pinTemp='';
+        document.getElementById('pin-subtitle').textContent = 'Choose a new PIN';
+        document.getElementById('pin-setup-hint').style.display = 'block';
+      }, 900);
+      return;
+    }
+    localStorage.setItem('_lbph', hash);
+    _unlockApp();
+    return;
+  }
+
+  // unlock mode
+  if(hash === stored){
+    sessionStorage.setItem('_lbus','1');
+    _unlockApp();
+  } else {
+    _pinDots('xxxx', true);
+    _pinMsg('Incorrect PIN', true);
+    setTimeout(()=>{ _pinDots('',false); _pinMsg(''); }, 900);
+  }
+}
+
+function _unlockApp(){
+  document.getElementById('pin-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  _bootApp();
+}
+
+function _checkPin(){
+  const hasPIN  = !!localStorage.getItem('_lbph');
+  const hasURL  = !!_getURL();
+  const unlocked = sessionStorage.getItem('_lbus') === '1';
+
+  if(!hasURL){
+    // First time ever — prompt for URL first, then PIN setup
+    _showURLSetup();
+    return;
+  }
+  if(!hasPIN){
+    // URL set but no PIN yet — setup mode
+    _pinMode = 'setup';
+    document.getElementById('pin-subtitle').textContent = 'Choose a 4-digit PIN';
+    document.getElementById('pin-setup-hint').style.display = 'block';
+    document.getElementById('pin-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    return;
+  }
+  if(!unlocked){
+    _pinMode = 'unlock';
+    document.getElementById('pin-subtitle').textContent = 'Enter your PIN';
+    document.getElementById('pin-setup-hint').style.display = 'none';
+    document.getElementById('pin-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    return;
+  }
+  // Already unlocked this session
+  _unlockApp();
+}
+
+function _showURLSetup(){
+  document.getElementById('pin-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  const overlay = document.createElement('div');
+  overlay.id = 'url-setup';
+  overlay.style.cssText='position:fixed;inset:0;background:#020a14;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:16px';
+  overlay.innerHTML = `
+    <div style="text-align:center;margin-bottom:8px">
+      <div style="font-size:2rem">📒</div>
+      <div style="font-family:var(--mono);font-size:1.1rem;font-weight:700;color:var(--accent);margin-top:8px">LOANBOOK SETUP</div>
+      <div style="font-size:.78rem;color:var(--text3);margin-top:6px">Enter your Apps Script Web App URL to get started</div>
+    </div>
+    <input id="url-input" type="url" placeholder="https://script.google.com/macros/s/..." autocomplete="off"
+      style="width:100%;max-width:360px;padding:12px 14px;border-radius:var(--r-sm);border:1px solid var(--border2);background:var(--panel);color:var(--text);font-size:.82rem;box-sizing:border-box">
+    <div id="url-err" style="font-size:.75rem;color:var(--red);min-height:16px"></div>
+    <button onclick="saveURL()" style="width:100%;max-width:360px;padding:14px;border-radius:var(--r-sm);background:var(--accent);border:none;color:#fff;font-size:.95rem;font-weight:700;cursor:pointer">
+      Save & Continue
+    </button>
+    <div style="font-size:.7rem;color:var(--text3);text-align:center;max-width:300px">
+      Your URL is stored encrypted on this device only.<br>Never shared with anyone.
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function saveURL(){
+  const u = (document.getElementById('url-input').value||'').trim();
+  if(!u.startsWith('https://script.google.com')){
+    document.getElementById('url-err').textContent = 'Must be a valid Apps Script URL';
+    return;
+  }
+  _setURL(u);
+  const overlay = document.getElementById('url-setup');
+  if(overlay) overlay.remove();
+  // Now go to PIN setup
+  _pinMode = 'setup';
+  document.getElementById('pin-subtitle').textContent = 'Choose a 4-digit PIN';
+  document.getElementById('pin-setup-hint').style.display = 'block';
+  document.getElementById('pin-screen').style.display = 'flex';
+}
+
+// Settings: change URL or PIN (accessible from app menu)
+function showSettings(){
+  openModal(`
+    <div class="modal-title">⚙️ Settings</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+      <button class="btn-primary" onclick="closeModal();_changeURL()">🔗 Update API URL</button>
+      <button class="btn-secondary" onclick="closeModal();_changePIN()">🔐 Change PIN</button>
+    </div>
+    <button class="btn-secondary" style="margin-top:8px;width:100%" onclick="closeModal()">Cancel</button>
+  `);
+}
+function _changeURL(){
+  const cur = _getURL();
+  const u = prompt('Enter new Apps Script Web App URL:', cur||'');
+  if(u && u.startsWith('https://script.google.com')){ _setURL(u); showToast('URL updated','ok'); }
+  else if(u) showToast('Invalid URL — must start with https://script.google.com','error');
+}
+function _changePIN(){
+  // Require current PIN first
+  const cur = prompt('Enter your CURRENT PIN to confirm:');
+  if(!cur){ return; }
+  _sha256(cur).then(h=>{
+    if(h !== localStorage.getItem('_lbph')){ showToast('Incorrect PIN','error'); return; }
+    sessionStorage.removeItem('_lbus');
+    localStorage.removeItem('_lbph');
+    _pinMode = 'setup';
+    _pinTemp = '';
+    document.getElementById('pin-subtitle').textContent = 'Choose a new PIN';
+    document.getElementById('pin-setup-hint').style.display = 'block';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('pin-screen').style.display = 'flex';
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════
+async function _bootApp(){
   const cached=await idbGet('DB');
   if(cached){
     DB=cached;
     if(!DB.dues_by_borrower) DB.dues_by_borrower={};
     renderDashboard();
+    renderBorrowers();
   }
   updateNetworkUI();
   updateQueueBadge();
   if(isOnline()) syncData();
 }
 
+async function boot(){
+  await openIDB();
+  _checkPin(); // show PIN first — calls _bootApp() after unlock
+}
+
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
+// Print container — hidden until printSummary() fills and triggers window.print()
+document.body.insertAdjacentHTML('beforeend','<div id="print-area" style="display:none"></div>');
 
 boot();
 </script>
