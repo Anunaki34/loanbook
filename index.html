@@ -590,6 +590,10 @@ button{cursor:pointer;border:none;background:none;color:inherit}
     <div class="queue-badge" id="queue-badge">0</div>
     Queue
   </button>
+  <button class="nav-btn" onclick="printPortfolio()" style="color:var(--purple)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    Report
+  </button>
 </nav>
 
 </div><!-- /app -->
@@ -841,9 +845,13 @@ function _collectionCardHTML(b, mode){
     return my<todayMY && (d.status||d.Status)!=='Paid';
   });
 
-  // Today's interest (may be 0 if already paid)
-  const todayInt   = todayDue ? Number(todayDue.int_owed!=null?todayDue.int_owed:todayDue.intDue||0) : 0;
-  const todayPenMax= todayDue ? Number(todayDue.penMax||todayDue.Penalty_Due||0) : 0;
+  // Today's interest = the SCHEDULED interest for this month (intDue), not int_owed
+  // int_owed is 0 for a current-month row that hasn't been paid yet but isn't past due
+  // We want to show what the borrower SHOULD pay today
+  const todayIntDue = todayDue ? Number(todayDue.intDue||todayDue.Interest_Due||0) : 0;
+  const todayIntOwd = todayDue ? Number(todayDue.int_owed!=null?todayDue.int_owed:todayIntDue) : 0;
+  const todayInt    = todayDue ? todayIntDue : 0; // always show scheduled interest for today
+  const todayPenMax = todayDue ? Number(todayDue.penMax||todayDue.Penalty_Due||0) : 0;
 
   // Prior arrears
   const priorInt = priorUnpaid.reduce((s,d)=>s+Number(d.int_owed||0),0);
@@ -1442,164 +1450,146 @@ function fmt(n){
 }
 
 // ═══════════════════════════════════════════════════════
-//  PRINT SUMMARY
+//  PRINT — BORROWER STATEMENT
 // ═══════════════════════════════════════════════════════
 function printSummary(){
+  // Clear any previous print content first (prevents duplicate bug)
+  const printArea = document.getElementById('print-area');
+  printArea.innerHTML = '';
+
   const b = DB.borrowers.find(x=>x.Borrower_ID===currentBorrowerId);
   if(!b){ showToast('Sync data first','error'); return; }
 
+  const p = n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const now = new Date().toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'});
+
   const allDuesRaw = (DB.dues_by_borrower[currentBorrowerId]||[])
     .sort((a,z)=>(a.monthYear||a.Month_Year||'').localeCompare(z.monthYear||z.Month_Year||''));
-  // Active dues for history table (no projected)
   const allDues = allDuesRaw.filter(d=>String(d.rowType||d.Row_Type||'Active').trim()!=='Projected');
-  // Current month projected (next due) — shown as payment projection
-  const projDues = allDuesRaw.filter(d=>String(d.rowType||d.Row_Type||'').trim()==='Projected');
-  const nextDue  = projDues.length ? projDues[0] : null; // first upcoming projected month
+  const projDues= allDuesRaw.filter(d=>String(d.rowType||d.Row_Type||'').trim()==='Projected');
+  const nextDue = projDues.length ? projDues[0] : null;
 
   const txns = (DB.transactions||[])
     .filter(t=>t.Borrower_ID===currentBorrowerId)
     .sort((a,z)=>(a.Timestamp||'').localeCompare(z.Timestamp||''));
 
-  const principal = Number(b.principal_balance ||0);
-  const interest  = Number(b.total_interest_due||0);
-  const penalty   = Number(b.total_penalty_due ||0);
+  const principal = Number(b.principal_balance  ||0);
+  const interest  = Number(b.total_interest_due ||0);
+  const penalty   = Number(b.total_penalty_due  ||0);
   const total     = Math.round((principal+interest+penalty)*100)/100;
 
-  const p = n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const now = new Date().toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'});
+  // Today's due month
+  const _now      = new Date();
+  const _todayMY  = _now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0');
+  const _todayDay = _now.getDate();
+  const _isDueToday = Number(b.Ref_Due_Date)===_todayDay;
+  const _todayDue = allDuesRaw.find(d=>(d.monthYear||d.Month_Year||'')===_todayMY);
+  const _todayInt = _todayDue ? Number(_todayDue.intDue||_todayDue.Interest_Due||0) : 0;
+  const _todayPen = _todayDue ? Number(_todayDue.penMax||_todayDue.Penalty_Due||0)  : 0;
+  const _priorUnpaid  = allDues.filter(d=>(d.monthYear||d.Month_Year||'')<_todayMY&&(d.status||d.Status)!=='Paid');
+  const _priorIntBal  = _priorUnpaid.reduce((s,d)=>s+Number(d.int_owed||0),0);
+  const _priorPenBal  = _priorUnpaid.reduce((s,d)=>s+Number(d.pen_owed||0),0);
+  const _payNow       = Math.round((_todayInt+_priorIntBal+_priorPenBal)*100)/100;
+  const _payLate      = Math.round((_payNow+_todayPen)*100)/100;
 
-  // Identify today's due month for this borrower
-  const _now       = new Date();
-  const _todayMY   = _now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0');
-  const _todayDay  = _now.getDate();
-  const _isDueToday= Number(b.Ref_Due_Date)===_todayDay;
+  const unpaidMonths = allDues.filter(d=>(d.status||d.Status)!=='Paid');
 
-  // Today's month due row (may be active or projected)
-  const _todayDue  = allDuesRaw.find(d=>(d.monthYear||d.Month_Year||'')===_todayMY);
-  const _todayInt  = _todayDue ? Number(_todayDue.intDue||_todayDue.Interest_Due||0) : 0;
-  const _todayPen  = _todayDue ? Number(_todayDue.penMax||_todayDue.Penalty_Due||0)  : 0;
-
-  // Prior unpaid (before today's month)
-  const _priorUnpaid = allDues.filter(d=>{
-    const my=d.monthYear||d.Month_Year||'';
-    return my<_todayMY && (d.status||d.Status)!=='Paid';
-  });
-  const _priorIntBal = _priorUnpaid.reduce((s,d)=>s+Number(d.int_owed||0),0);
-  const _priorPenBal = _priorUnpaid.reduce((s,d)=>s+Number(d.pen_owed||0),0);
-
-  // Amount due if paid ON TIME today
-  const _amtOnTime = _r(_todayInt + _priorIntBal + _priorPenBal);
-  // Amount due if paid LATE (includes today's penalty)
-  const _amtLate   = _r(_amtOnTime + _todayPen);
-
-  // Build payment schedule rows with standard lending terms
-  const duesRows = allDues.map(d=>{
-    const status    = String(d.status||d.Status||'Unpaid');
-    const intCharged= Number(d.intDue||d.Interest_Due||0);
-    const lateCharge= Number(d.penCharged!=null?d.penCharged:(d.penMax||d.Penalty_Due||0));
-    const intPaid   = Number(d.intPaid||0);
-    const latePaid  = Number(d.penPaid||0);
-    const intBal    = Number(d.int_owed!=null?d.int_owed:Math.max(0,intCharged-intPaid));
-    const lateBal   = Number(d.pen_owed!=null?d.pen_owed:Math.max(0,lateCharge-latePaid));
-    const totalBal  = Number(d.total_owed!=null?d.total_owed:_r(intBal+lateBal));
-    const monthLabel= fmtMonth(d.monthYear||d.Month_Year||'');
-    const dueLbl    = fmtDate(d.dueDate||d.Due_Date||'');
-    const isUnpaid  = status==='Unpaid'||status==='Partial';
-    // Map to standard lending status terms
-    const statusLabel = status==='Paid'?'PAID':status==='Partial'?'PARTIAL':'PAST DUE';
-    const rowBg = isUnpaid ? (status==='Partial'?'#fff8e6':'#fff0f0') : '#f4fef7';
-    const statusBg = status==='Paid'?'#d4edda':status==='Partial'?'#fff3cd':'#f8d7da';
-    const statusFg = status==='Paid'?'#155724':status==='Partial'?'#7d4700':'#721c24';
+  // Payment schedule rows
+  const schedRows = allDues.map(d=>{
+    const status   = String(d.status||d.Status||'Unpaid');
+    const intChg   = Number(d.intDue||d.Interest_Due||0);
+    const lateChg  = Number(d.penCharged!=null?d.penCharged:(d.penMax||d.Penalty_Due||0));
+    const intPaid  = Number(d.intPaid||0);
+    const latePaid = Number(d.penPaid||0);
+    const intBal   = Number(d.int_owed!=null?d.int_owed:Math.max(0,intChg-intPaid));
+    const lateBal  = Number(d.pen_owed!=null?d.pen_owed:Math.max(0,lateChg-latePaid));
+    const totalBal = Math.round((intBal+lateBal)*100)/100;
+    const lbl      = status==='Paid'?'PAID':status==='Partial'?'PARTIAL':'PAST DUE';
+    const rowBg    = status==='Paid'?'#f4fef7':status==='Partial'?'#fff8e6':'#fff0f0';
+    const stBg     = status==='Paid'?'#d4edda':status==='Partial'?'#fff3cd':'#f8d7da';
+    const stFg     = status==='Paid'?'#155724':status==='Partial'?'#7d4700':'#721c24';
     return `<tr style="background:${rowBg}">
-      <td style="font-weight:600;padding:4px 6px">${monthLabel}</td>
-      <td style="padding:4px 6px">${dueLbl}</td>
-      <td style="text-align:right;padding:4px 6px">${p(intCharged)}</td>
-      <td style="text-align:right;padding:4px 6px;color:${lateCharge>0?'#b91c1c':'#999'}">${lateCharge>0?p(lateCharge):'—'}</td>
-      <td style="text-align:right;padding:4px 6px;font-weight:600">${p(intCharged+lateCharge)}</td>
-      <td style="text-align:right;padding:4px 6px;color:#155724">${intPaid>0?p(intPaid):'—'}</td>
-      <td style="text-align:right;padding:4px 6px;color:${latePaid>0?'#155724':'#999'}">${latePaid>0?p(latePaid):'—'}</td>
-      <td style="text-align:right;padding:4px 6px;font-weight:${isUnpaid?'700':'400'};color:${isUnpaid?'#b91c1c':'#155724'}">${isUnpaid?p(totalBal):'—'}</td>
-      <td style="text-align:center;padding:4px 6px"><span style="background:${statusBg};color:${statusFg};padding:1px 6px;border-radius:3px;font-size:.68rem;font-weight:700">${statusLabel}</span></td>
+      <td style="padding:4px 6px;font-weight:600">${fmtMonth(d.monthYear||d.Month_Year||'')}</td>
+      <td style="padding:4px 6px">${fmtDate(d.dueDate||d.Due_Date||'')}</td>
+      <td style="padding:4px 6px;text-align:right">${p(intChg)}</td>
+      <td style="padding:4px 6px;text-align:right;color:${lateChg>0?'#b91c1c':'#999'}">${lateChg>0?p(lateChg):'—'}</td>
+      <td style="padding:4px 6px;text-align:right;font-weight:600">${p(intChg+lateChg)}</td>
+      <td style="padding:4px 6px;text-align:right;color:#155724">${intPaid>0?p(intPaid):'—'}</td>
+      <td style="padding:4px 6px;text-align:right;color:${latePaid>0?'#155724':'#999'}">${latePaid>0?p(latePaid):'—'}</td>
+      <td style="padding:4px 6px;text-align:right;font-weight:${totalBal>0?'700':'400'};color:${totalBal>0?'#b91c1c':'#155724'}">${totalBal>0?p(totalBal):'—'}</td>
+      <td style="padding:4px 6px;text-align:center"><span style="background:${stBg};color:${stFg};padding:1px 6px;border-radius:3px;font-size:.67rem;font-weight:700">${lbl}</span></td>
     </tr>`;
   }).join('');
 
-  // Build transaction rows
+  // Transaction rows
   const txnRows = txns.map(t=>{
-    const type   = String(t.Txn_Type||'').trim();
-    const isLoan = type==='Loan';
+    const isLoan = String(t.Txn_Type||'').trim()==='Loan';
     return `<tr style="${isLoan?'background:#e8f4fd;':''}">
-      <td>${fmtDate(t.Timestamp||'')}</td>
-      <td style="font-weight:600;color:${isLoan?'#0d47a1':'#155724'}">${type}</td>
-      <td style="text-align:right;font-weight:600">${p(t.Total_Amount||0)}</td>
-      <td style="text-align:right;color:#555">${p(t.Alloc_Interest||0)}</td>
-      <td style="text-align:right;color:${Number(t.Alloc_Penalty||0)>0?'#b91c1c':'#999'}">${Number(t.Alloc_Penalty||0)>0?p(t.Alloc_Penalty):'—'}</td>
-      <td style="text-align:right;color:#555">${Number(t.Alloc_Principal||0)>0?p(t.Alloc_Principal):'—'}</td>
-      <td style="color:#666;font-size:.8rem">${t.Notes||''}</td>
+      <td style="padding:4px 6px">${fmtDate(t.Timestamp||'')}</td>
+      <td style="padding:4px 6px;font-weight:600;color:${isLoan?'#0d47a1':'#155724'}">${isLoan?'Loan Disbursement':'Payment Received'}</td>
+      <td style="padding:4px 6px;text-align:right;font-weight:600">${p(t.Total_Amount||0)}</td>
+      <td style="padding:4px 6px;text-align:right">${Number(t.Alloc_Interest||0)>0?p(t.Alloc_Interest):'—'}</td>
+      <td style="padding:4px 6px;text-align:right;color:${Number(t.Alloc_Penalty||0)>0?'#b91c1c':'#999'}">${Number(t.Alloc_Penalty||0)>0?p(t.Alloc_Penalty):'—'}</td>
+      <td style="padding:4px 6px;text-align:right">${Number(t.Alloc_Principal||0)>0?p(t.Alloc_Principal):'—'}</td>
+      <td style="padding:4px 6px;font-size:.75rem;color:#666">${t.Notes||''}</td>
     </tr>`;
   }).join('');
 
-  const unpaidCount = allDues.filter(d=>String(d.status||'Unpaid')!=='Paid').length;
-
-  document.getElementById('print-area').innerHTML = `
-<div style="font-family:Arial,sans-serif;font-size:11px;color:#111;padding:8px;max-width:100%">
+  printArea.innerHTML = `
+<div style="font-family:Arial,sans-serif;font-size:11px;color:#111;padding:8px">
 
   <!-- HEADER -->
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1a3a6c;padding-bottom:6px;margin-bottom:8px">
+  <div style="border-bottom:2.5px solid #1a3a6c;padding-bottom:6px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-end">
     <div>
-      <div style="font-size:1.1rem;font-weight:700;color:#1a3a6c">LOAN ACCOUNT STATEMENT</div>
-      <div style="font-size:.72rem;color:#555">For collection reference only · Not an official receipt</div>
+      <div style="font-size:1.15rem;font-weight:700;color:#1a3a6c">LOAN ACCOUNT STATEMENT</div>
+      <div style="font-size:.72rem;color:#666;margin-top:1px">For collection reference only · Not an official receipt</div>
     </div>
-    <div style="text-align:right;font-size:.72rem;color:#555">Date: <b>${now}</b></div>
+    <div style="text-align:right;font-size:.72rem;color:#666">Statement Date: <b>${now}</b></div>
   </div>
 
-  <!-- BORROWER + OUTSTANDING BALANCE -->
-  <div style="display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:8px;align-items:start">
-    <div>
+  <!-- BORROWER INFO + BALANCE SUMMARY (2 columns) -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+    <div style="background:#f5f8ff;border:1px solid #c5d3f0;border-radius:6px;padding:10px 12px">
+      <div style="font-size:.65rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Account Holder</div>
       <div style="font-size:1rem;font-weight:700;color:#1a3a6c">${b.Full_Name}</div>
-      <div style="font-size:.76rem;color:#555;margin-top:2px">Payment due every <b>${_ord(b.Ref_Due_Date)}</b> of the month</div>
-      <div style="margin-top:4px;font-size:.74rem;font-weight:600;color:${unpaidCount>0?'#721c24':'#155724'}">
-        ${unpaidCount>0?`⚠ ${unpaidCount} month${unpaidCount>1?'s':''} past due`:'✓ No past due accounts'}
+      <div style="font-size:.76rem;color:#555;margin-top:3px">Payment due every <b>${_ord(b.Ref_Due_Date||1)}</b> of the month</div>
+      <div style="font-size:.74rem;font-weight:600;margin-top:4px;color:${unpaidMonths.length>0?'#721c24':'#155724'}">
+        ${unpaidMonths.length>0?`⚠ ${unpaidMonths.length} month${unpaidMonths.length>1?'s':''} past due`:'✓ Account current — no past due'}
       </div>
     </div>
-    <div style="background:#fff8e1;border:1.5px solid #e0c040;border-radius:6px;padding:8px 12px;min-width:175px">
-      <div style="font-size:.65rem;font-weight:700;color:#7d4700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Outstanding Balance</div>
+    <div style="background:#fffde7;border:1px solid #e0c040;border-radius:6px;padding:10px 12px">
+      <div style="font-size:.65rem;font-weight:700;color:#7d4700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Outstanding Balance</div>
       <table style="width:100%;border-collapse:collapse;font-size:.8rem">
-        <tr><td style="color:#555;padding:1px 0">Principal Balance</td><td style="text-align:right;font-weight:600;padding-left:10px">${p(principal)}</td></tr>
-        <tr><td style="color:#e65100;padding:1px 0">Accrued Interest</td><td style="text-align:right;font-weight:600;color:#e65100;padding-left:10px">${p(interest)}</td></tr>
-        <tr><td style="color:#b71c1c;padding:1px 0">Late Charges</td><td style="text-align:right;font-weight:600;color:#b71c1c;padding-left:10px">${p(penalty)}</td></tr>
-        <tr style="border-top:1.5px solid #e0c040">
-          <td style="font-weight:700;padding-top:4px">Total Amount Due</td>
-          <td style="text-align:right;font-weight:700;color:#b71c1c;padding-top:4px;padding-left:10px">${p(total)}</td>
+        <tr><td style="color:#333;padding:2px 0">Principal Balance</td><td style="text-align:right;font-weight:600">${p(principal)}</td></tr>
+        <tr><td style="color:#e65100;padding:2px 0">Accrued Interest</td><td style="text-align:right;font-weight:600;color:#e65100">${p(interest)}</td></tr>
+        <tr><td style="color:#b71c1c;padding:2px 0">Late Charges</td><td style="text-align:right;font-weight:600;color:#b71c1c">${p(penalty)}</td></tr>
+        <tr style="border-top:1.5px solid #e0c040;margin-top:3px">
+          <td style="font-weight:700;padding-top:5px">Total Amount Due</td>
+          <td style="text-align:right;font-weight:700;font-size:.9rem;color:#b71c1c;padding-top:5px">${p(total)}</td>
         </tr>
       </table>
     </div>
   </div>
 
-  <!-- AMOUNT DUE TODAY / PAYMENT NOTICE -->
-  ${_isDueToday||_amtOnTime>0?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-    <div style="background:#e8f5e9;border:1.5px solid #4caf50;border-radius:6px;padding:8px 10px">
-      <div style="font-size:.65rem;font-weight:700;color:#1b5e20;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">
-        ${_isDueToday?'Amount Due Today (On Time)':'Total Amount Overdue'}
-      </div>
-      ${_isDueToday?`<div style="font-size:.72rem;color:#2e7d32">Today's interest: <b>${p(_todayInt)}</b></div>`:''}
-      ${_priorIntBal>0?`<div style="font-size:.72rem;color:#b71c1c">Prior interest balance: <b>${p(_priorIntBal)}</b></div>`:''}
-      ${_priorPenBal>0?`<div style="font-size:.72rem;color:#b71c1c">Prior late charges: <b>${p(_priorPenBal)}</b></div>`:''}
-      <div style="font-size:.95rem;font-weight:700;color:#1b5e20;margin-top:4px;border-top:1px solid #a5d6a7;padding-top:4px">${p(_amtOnTime)}</div>
-      ${_isDueToday?'<div style="font-size:.62rem;color:#2e7d32;margin-top:1px">Pay on or before today to avoid late charges</div>':''}
+  <!-- WHAT TO PAY TODAY (only if due today OR has arrears) -->
+  ${(_isDueToday || _payNow > 0) ? `<div style="background:#e8f5e9;border:1.5px solid #4caf50;border-radius:6px;padding:10px 12px;margin-bottom:10px">
+    <div style="font-size:.65rem;font-weight:700;color:#1b5e20;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">
+      ${_isDueToday ? '📋 Amount to Pay Today' : '📋 Arrears — Overdue Amount'}
     </div>
-    <div style="background:#fff8e6;border:1.5px solid #ff9800;border-radius:6px;padding:8px 10px">
-      <div style="font-size:.65rem;font-weight:700;color:#7d4700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">
-        ${_isDueToday?'Amount If Paid Past Due':'Additional Late Charge'}
+    <div style="display:grid;grid-template-columns:${_isDueToday?'1fr 1fr 1fr':'1fr 1fr'};gap:8px">
+      ${_isDueToday ? `<div><div style="font-size:.68rem;color:#2e7d32">This month's interest</div><div style="font-size:.9rem;font-weight:700;color:#1b5e20">${p(_todayInt)}</div></div>` : ''}
+      ${_priorIntBal>0||_priorPenBal>0 ? `<div><div style="font-size:.68rem;color:#b71c1c">Prior unpaid balance</div><div style="font-size:.9rem;font-weight:700;color:#b71c1c">${p(_priorIntBal+_priorPenBal)}</div></div>` : ''}
+      <div style="border-left:2px solid #4caf50;padding-left:8px">
+        <div style="font-size:.68rem;color:#1b5e20;font-weight:600">PAY NOW (on time)</div>
+        <div style="font-size:1rem;font-weight:700;color:#1b5e20">${p(_payNow)}</div>
+        ${_isDueToday&&_todayPen>0?`<div style="font-size:.65rem;color:#e65100;margin-top:2px">Pay late → +${p(_todayPen)} late charge → Total: ${p(_payLate)}</div>`:''}
       </div>
-      ${_isDueToday?`<div style="font-size:.72rem;color:#e65100">Late charge (10%): <b>${p(_todayPen)}</b></div>`:''}
-      <div style="font-size:.95rem;font-weight:700;color:#e65100;margin-top:4px;border-top:1px solid #ffcc80;padding-top:4px">${p(_amtLate)}</div>
-      ${_isDueToday?'<div style="font-size:.62rem;color:#e65100;margin-top:1px">Late charge applies if payment received after today</div>':''}
     </div>
-  </div>`:''}
+  </div>` : ''}
 
-  <!-- PAYMENT HISTORY TABLE -->
-  <div style="font-size:.68rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:4px">Payment History</div>
-  <table style="width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:6px">
+  <!-- PAYMENT SCHEDULE -->
+  <div style="font-size:.68rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:4px">Monthly Payment Schedule</div>
+  <table style="width:100%;border-collapse:collapse;font-size:.76rem;margin-bottom:5px">
     <thead>
       <tr style="background:#1a3a6c;color:#fff">
         <th style="padding:4px 5px;text-align:left">Period</th>
@@ -1613,58 +1603,191 @@ function printSummary(){
         <th style="padding:4px 5px;text-align:center">Status</th>
       </tr>
     </thead>
-    <tbody>${duesRows||'<tr><td colspan="9" style="text-align:center;padding:8px;color:#999">No payment records</td></tr>'}</tbody>
+    <tbody>${schedRows||'<tr><td colspan="9" style="text-align:center;padding:8px;color:#999">No schedule records</td></tr>'}</tbody>
   </table>
-  <div style="font-size:.65rem;color:#888;margin-bottom:7px">
-    <span style="display:inline-block;width:9px;height:9px;background:#fff0f0;border:1px solid #e57373;margin-right:3px;vertical-align:middle"></span>Past Due &nbsp;
-    <span style="display:inline-block;width:9px;height:9px;background:#fff8e6;border:1px solid #ffa726;margin-right:3px;vertical-align:middle"></span>Partially Paid &nbsp;
-    <span style="display:inline-block;width:9px;height:9px;background:#f4fef7;border:1px solid #66bb6a;margin-right:3px;vertical-align:middle"></span>Paid in Full
+  <div style="font-size:.64rem;color:#888;margin-bottom:8px">
+    <span style="display:inline-block;width:8px;height:8px;background:#fff0f0;border:1px solid #e57373;margin-right:3px;vertical-align:middle"></span>Past Due &nbsp;
+    <span style="display:inline-block;width:8px;height:8px;background:#fff8e6;border:1px solid #ffa726;margin-right:3px;vertical-align:middle"></span>Partially Paid &nbsp;
+    <span style="display:inline-block;width:8px;height:8px;background:#f4fef7;border:1px solid #66bb6a;margin-right:3px;vertical-align:middle"></span>Paid in Full
   </div>
 
-  <!-- NEXT DUE / UPCOMING PAYMENT -->
-  ${nextDue?`<div style="background:#f0f4ff;border:1px solid #c5d3f0;border-radius:6px;padding:7px 10px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center">
+  <!-- NEXT PAYMENT PROJECTION -->
+  ${nextDue ? `<div style="background:#f0f4ff;border:1px solid #c5d3f0;border-radius:6px;padding:8px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
     <div>
-      <div style="font-size:.65rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.06em">Next Payment Due</div>
-      <div style="font-size:.85rem;font-weight:700;color:#1a3a6c;margin-top:2px">${fmtMonth(nextDue.monthYear||nextDue.Month_Year||'')}</div>
-      <div style="font-size:.72rem;color:#555">Due date: ${fmtDate(nextDue.dueDate||nextDue.Due_Date||'')}</div>
+      <div style="font-size:.65rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.06em">📅 Next Payment Due</div>
+      <div style="font-size:.88rem;font-weight:700;color:#1a3a6c;margin-top:2px">${fmtMonth(nextDue.monthYear||nextDue.Month_Year||'')}</div>
+      <div style="font-size:.72rem;color:#555">Due date: <b>${fmtDate(nextDue.dueDate||nextDue.Due_Date||'')}</b></div>
     </div>
     <div style="text-align:right">
-      <div style="font-size:.7rem;color:#555">Principal: <b>${p(nextDue.principal||nextDue.Principal_Snapshot||0)}</b></div>
-      <div style="font-size:.7rem;color:#555">Interest Due: <b>${p(nextDue.intDue||nextDue.Interest_Due||0)}</b></div>
-      <div style="font-size:.85rem;font-weight:700;color:#1a3a6c;margin-top:2px">Expected: ${p(Number(nextDue.intDue||nextDue.Interest_Due||0))}</div>
-      <div style="font-size:.62rem;color:#777">Late charge if unpaid: ${p(Number(nextDue.penMax||nextDue.Penalty_Due||0))}</div>
+      <div style="font-size:.7rem;color:#555">Principal on record: ${p(nextDue.principal||nextDue.Principal_Snapshot||0)}</div>
+      <div style="font-size:.85rem;font-weight:700;color:#1a3a6c;margin-top:3px">Expected payment: ${p(Number(nextDue.intDue||nextDue.Interest_Due||0))}</div>
+      <div style="font-size:.65rem;color:#e65100">Late charge if unpaid: +${p(Number(nextDue.penMax||nextDue.Penalty_Due||0))}</div>
     </div>
-  </div>`:''}
+  </div>` : ''}
 
-  <!-- DISBURSEMENT / LOAN HISTORY -->
+  <!-- TRANSACTION HISTORY -->
   <div style="font-size:.68rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:4px">Loan & Payment Transactions</div>
-  <table style="width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:7px">
+  <table style="width:100%;border-collapse:collapse;font-size:.76rem;margin-bottom:8px">
     <thead>
       <tr style="background:#37474f;color:#fff">
         <th style="padding:4px 5px;text-align:left">Date</th>
         <th style="padding:4px 5px;text-align:left">Transaction Type</th>
         <th style="padding:4px 5px;text-align:right">Amount</th>
-        <th style="padding:4px 5px;text-align:right">Interest</th>
+        <th style="padding:4px 5px;text-align:right">Interest Alloc.</th>
         <th style="padding:4px 5px;text-align:right">Late Charge</th>
-        <th style="padding:4px 5px;text-align:right">Principal</th>
+        <th style="padding:4px 5px;text-align:right">Principal Alloc.</th>
         <th style="padding:4px 5px;text-align:left">Remarks</th>
       </tr>
     </thead>
-    <tbody>${txnRows||'<tr><td colspan="7" style="text-align:center;padding:8px;color:#999">No transactions on record</td></tr>'}</tbody>
+    <tbody>${txnRows||'<tr><td colspan="7" style="text-align:center;padding:8px;color:#999">No transactions</td></tr>'}</tbody>
   </table>
 
   <!-- FOOTER -->
-  <div style="border-top:1px solid #ccc;padding-top:5px;font-size:.65rem;color:#999;display:flex;justify-content:space-between">
+  <div style="border-top:1px solid #ccc;padding-top:5px;font-size:.64rem;color:#999;display:flex;justify-content:space-between">
     <div>Generated: ${now} · LoanBook System</div>
-    <div>This is a system-generated statement and not an official receipt.</div>
+    <div>System-generated statement · Not valid as an official receipt</div>
   </div>
 </div>`;
 
-  document.getElementById('print-area').style.display='block';
+  printArea.style.display='block';
   window.print();
-  document.getElementById('print-area').style.display='none';
+  printArea.style.display='none';
 }
 
+// ═══════════════════════════════════════════════════════
+//  PRINT — PORTFOLIO REPORT
+// ═══════════════════════════════════════════════════════
+function printPortfolio(){
+  const printArea = document.getElementById('print-area');
+  printArea.innerHTML = '';
+
+  const p  = n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const now = new Date().toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'});
+  const active  = DB.borrowers.filter(b=>b.Status==='Active');
+  const closed  = DB.borrowers.filter(b=>b.Status==='Closed');
+
+  let totPrincipal=0, totInterest=0, totPenalty=0, totLoan=0;
+  let overdueCount=0;
+  active.forEach(b=>{
+    totPrincipal += Number(b.principal_balance  ||0);
+    totInterest  += Number(b.total_interest_due ||0);
+    totPenalty   += Number(b.total_penalty_due  ||0);
+    const dues    = DB.dues_by_borrower[b.Borrower_ID]||[];
+    const hasUnpaid = dues.some(d=>String(d.rowType||d.Row_Type||'Active').trim()!=='Projected'&&(d.status||d.Status)!=='Paid');
+    if(hasUnpaid) overdueCount++;
+  });
+  // Total ever loaned = sum of all Loan transactions
+  (DB.transactions||[]).forEach(t=>{
+    if(String(t.Txn_Type||'').trim()==='Loan') totLoan += Number(t.Total_Amount||0);
+  });
+  const totOutstanding = Math.round((totPrincipal+totInterest+totPenalty)*100)/100;
+
+  // Per-borrower rows sorted by outstanding desc
+  const borrowerRows = [...active].sort((a,b)=>{
+    const ao=Number(a.principal_balance||0)+Number(a.total_interest_due||0)+Number(a.total_penalty_due||0);
+    const bo=Number(b.principal_balance||0)+Number(b.total_interest_due||0)+Number(b.total_penalty_due||0);
+    return bo-ao;
+  }).map((b,i)=>{
+    const prin  = Number(b.principal_balance  ||0);
+    const inter = Number(b.total_interest_due ||0);
+    const pen   = Number(b.total_penalty_due  ||0);
+    const tot   = Math.round((prin+inter+pen)*100)/100;
+    const dues  = DB.dues_by_borrower[b.Borrower_ID]||[];
+    const unpd  = dues.filter(d=>String(d.rowType||d.Row_Type||'Active').trim()!=='Projected'&&(d.status||d.Status)!=='Paid').length;
+    return `<tr style="background:${i%2===0?'#fafafa':'#fff'}">
+      <td style="padding:4px 6px">${b.Full_Name}</td>
+      <td style="padding:4px 6px;text-align:center">${_ord(b.Ref_Due_Date||1)}</td>
+      <td style="padding:4px 6px;text-align:right">${p(prin)}</td>
+      <td style="padding:4px 6px;text-align:right;color:#e65100">${inter>0?p(inter):'—'}</td>
+      <td style="padding:4px 6px;text-align:right;color:#b71c1c">${pen>0?p(pen):'—'}</td>
+      <td style="padding:4px 6px;text-align:right;font-weight:700">${p(tot)}</td>
+      <td style="padding:4px 6px;text-align:center">
+        ${unpd>0
+          ? `<span style="background:#f8d7da;color:#721c24;padding:1px 6px;border-radius:3px;font-size:.67rem;font-weight:700">${unpd} past due</span>`
+          : `<span style="background:#d4edda;color:#155724;padding:1px 6px;border-radius:3px;font-size:.67rem;font-weight:700">Current</span>`}
+      </td>
+    </tr>`;
+  }).join('');
+
+  printArea.innerHTML = `
+<div style="font-family:Arial,sans-serif;font-size:11px;color:#111;padding:8px">
+
+  <!-- HEADER -->
+  <div style="border-bottom:2.5px solid #1a3a6c;padding-bottom:6px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-end">
+    <div>
+      <div style="font-size:1.15rem;font-weight:700;color:#1a3a6c">LOAN PORTFOLIO REPORT</div>
+      <div style="font-size:.72rem;color:#666">Complete financial summary — All borrowers</div>
+    </div>
+    <div style="text-align:right;font-size:.72rem;color:#666">As of: <b>${now}</b></div>
+  </div>
+
+  <!-- PORTFOLIO SUMMARY CARDS -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
+    <div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:8px 10px;text-align:center">
+      <div style="font-size:.62rem;color:#2e7d32;text-transform:uppercase;font-weight:700">Active Borrowers</div>
+      <div style="font-size:1.3rem;font-weight:700;color:#1b5e20;margin-top:2px">${active.length}</div>
+      <div style="font-size:.62rem;color:#555">${closed.length} closed</div>
+    </div>
+    <div style="background:#fff8e1;border:1px solid #ffc107;border-radius:6px;padding:8px 10px;text-align:center">
+      <div style="font-size:.62rem;color:#7d4700;text-transform:uppercase;font-weight:700">Principal Out</div>
+      <div style="font-size:.85rem;font-weight:700;color:#7d4700;margin-top:2px">${p(totPrincipal)}</div>
+      <div style="font-size:.62rem;color:#555">Total loaned: ${p(totLoan)}</div>
+    </div>
+    <div style="background:#fff3e0;border:1px solid #ff9800;border-radius:6px;padding:8px 10px;text-align:center">
+      <div style="font-size:.62rem;color:#e65100;text-transform:uppercase;font-weight:700">Uncollected Interest</div>
+      <div style="font-size:.85rem;font-weight:700;color:#e65100;margin-top:2px">${p(totInterest)}</div>
+      <div style="font-size:.62rem;color:#555">Late charges: ${p(totPenalty)}</div>
+    </div>
+    <div style="background:#ffebee;border:1px solid #f44336;border-radius:6px;padding:8px 10px;text-align:center">
+      <div style="font-size:.62rem;color:#b71c1c;text-transform:uppercase;font-weight:700">Total Outstanding</div>
+      <div style="font-size:.85rem;font-weight:700;color:#b71c1c;margin-top:2px">${p(totOutstanding)}</div>
+      <div style="font-size:.62rem;color:#555">${overdueCount} with past due</div>
+    </div>
+  </div>
+
+  <!-- BORROWER TABLE -->
+  <div style="font-size:.68rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:4px">Borrower Accounts</div>
+  <table style="width:100%;border-collapse:collapse;font-size:.76rem;margin-bottom:8px">
+    <thead>
+      <tr style="background:#1a3a6c;color:#fff">
+        <th style="padding:5px 6px;text-align:left">Borrower Name</th>
+        <th style="padding:5px 6px;text-align:center">Due Day</th>
+        <th style="padding:5px 6px;text-align:right">Principal</th>
+        <th style="padding:5px 6px;text-align:right">Accrued Interest</th>
+        <th style="padding:5px 6px;text-align:right">Late Charges</th>
+        <th style="padding:5px 6px;text-align:right">Total Due</th>
+        <th style="padding:5px 6px;text-align:center">Account Status</th>
+      </tr>
+    </thead>
+    <tbody>${borrowerRows||'<tr><td colspan="7" style="text-align:center;padding:12px;color:#999">No active borrowers</td></tr>'}</tbody>
+    <tfoot>
+      <tr style="background:#1a3a6c;color:#fff;font-weight:700">
+        <td style="padding:5px 6px" colspan="2">TOTAL (${active.length} borrowers)</td>
+        <td style="padding:5px 6px;text-align:right">${p(totPrincipal)}</td>
+        <td style="padding:5px 6px;text-align:right">${p(totInterest)}</td>
+        <td style="padding:5px 6px;text-align:right">${p(totPenalty)}</td>
+        <td style="padding:5px 6px;text-align:right">${p(totOutstanding)}</td>
+        <td style="padding:5px 6px;text-align:center">${overdueCount} past due</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- CLOSED ACCOUNTS -->
+  ${closed.length>0?`<div style="font-size:.68rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid #ccc;padding-bottom:2px;margin-bottom:4px">Closed Accounts (${closed.length})</div>
+  <div style="font-size:.74rem;color:#888">${closed.map(b=>b.Full_Name).join(' · ')}</div>
+  <div style="margin-bottom:8px"></div>`:''}
+
+  <!-- FOOTER -->
+  <div style="border-top:1px solid #ccc;padding-top:5px;font-size:.64rem;color:#999;display:flex;justify-content:space-between">
+    <div>Generated: ${now} · LoanBook System</div>
+    <div>Confidential — For internal use only</div>
+  </div>
+</div>`;
+
+  printArea.style.display='block';
+  window.print();
+  printArea.style.display='none';
+}
 // ═══════════════════════════════════════════════════════
 //  PIN LOCK
 // ═══════════════════════════════════════════════════════
