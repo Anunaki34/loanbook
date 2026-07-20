@@ -1661,26 +1661,144 @@ function printPortfolio(){
   const printArea = document.getElementById('print-area');
   printArea.innerHTML = '';
 
-  const p  = n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const p   = n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const pct = (a,b)=>b>0?Math.round(a/b*1000)/10+'%':'0%';
   const now = new Date().toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'});
-  const active  = DB.borrowers.filter(b=>b.Status==='Active');
-  const closed  = DB.borrowers.filter(b=>b.Status==='Closed');
+  const active = DB.borrowers.filter(b=>b.Status==='Active');
+  const closed = DB.borrowers.filter(b=>b.Status==='Closed');
+  const allTxns = DB.transactions||[];
 
-  let totPrincipal=0, totInterest=0, totPenalty=0, totLoan=0;
-  let overdueCount=0;
+  // ── PORTFOLIO TOTALS ──────────────────────────────────
+  let totPrincipal=0, totInterest=0, totPenalty=0;
+  let totLoanDisb=0, totPayCollected=0, totIntCollected=0, totPenCollected=0, totPrinCollected=0;
+  let overdueCount=0, currentCount=0;
+
   active.forEach(b=>{
     totPrincipal += Number(b.principal_balance  ||0);
     totInterest  += Number(b.total_interest_due ||0);
     totPenalty   += Number(b.total_penalty_due  ||0);
-    const dues    = DB.dues_by_borrower[b.Borrower_ID]||[];
+    const dues = DB.dues_by_borrower[b.Borrower_ID]||[];
     const hasUnpaid = dues.some(d=>String(d.rowType||d.Row_Type||'Active').trim()!=='Projected'&&(d.status||d.Status)!=='Paid');
-    if(hasUnpaid) overdueCount++;
+    if(hasUnpaid) overdueCount++; else currentCount++;
   });
-  // Total ever loaned = sum of all Loan transactions
-  (DB.transactions||[]).forEach(t=>{
-    if(String(t.Txn_Type||'').trim()==='Loan') totLoan += Number(t.Total_Amount||0);
+
+  allTxns.forEach(t=>{
+    const type = String(t.Txn_Type||'').trim();
+    if(type==='Loan'){
+      totLoanDisb += Number(t.Total_Amount||0);
+    } else if(type==='Payment'){
+      totPayCollected   += Number(t.Total_Amount    ||0);
+      totIntCollected   += Number(t.Alloc_Interest  ||0);
+      totPenCollected   += Number(t.Alloc_Penalty   ||0);
+      totPrinCollected  += Number(t.Alloc_Principal ||0);
+    }
   });
   const totOutstanding = Math.round((totPrincipal+totInterest+totPenalty)*100)/100;
+
+  // ── MONTHLY COLLECTION ANALYTICS ─────────────────────
+  // Group all Payment transactions by YYYY-MM
+  const monthlyMap = {};
+  allTxns.forEach(t=>{
+    if(String(t.Txn_Type||'').trim()!=='Payment') return;
+    const ts  = String(t.Timestamp||'');
+    const my  = ts.slice(0,7); // YYYY-MM
+    if(!my||my.length!==7) return;
+    if(!monthlyMap[my]) monthlyMap[my]={month:my,total:0,interest:0,penalty:0,principal:0,count:0};
+    monthlyMap[my].total     += Number(t.Total_Amount   ||0);
+    monthlyMap[my].interest  += Number(t.Alloc_Interest ||0);
+    monthlyMap[my].penalty   += Number(t.Alloc_Penalty  ||0);
+    monthlyMap[my].principal += Number(t.Alloc_Principal||0);
+    monthlyMap[my].count++;
+  });
+  const monthlyArr = Object.values(monthlyMap)
+    .sort((a,b)=>a.month.localeCompare(b.month));
+
+  // Analytics
+  const peakMonth = monthlyArr.reduce((best,m)=>m.total>best.total?m:best, {month:'',total:0});
+  const leanMonth = monthlyArr.reduce((best,m)=>m.total<best.total?m:best, monthlyArr[0]||{month:'',total:0});
+  const avgMonthly= monthlyArr.length ? Math.round(monthlyArr.reduce((s,m)=>s+m.total,0)/monthlyArr.length*100)/100 : 0;
+  const totalMonths = monthlyArr.length;
+
+  // Monthly collection rows
+  const maxTotal = peakMonth.total||1;
+  const monthRows = monthlyArr.map((m,i)=>{
+    const barPct = Math.round(m.total/maxTotal*100);
+    const isPeak = m.month===peakMonth.month;
+    const isLean = m.month===leanMonth.month && totalMonths>1;
+    const label  = new Date(m.month+'-15').toLocaleDateString('en-PH',{month:'short',year:'numeric'});
+    return `<tr style="background:${i%2===0?'#fafafa':'#fff'}">
+      <td style="padding:3px 6px;font-weight:${isPeak||isLean?'700':'400'}">${label}${isPeak?' 🔝':isLean?' 📉':''}</td>
+      <td style="padding:3px 6px;text-align:center">${m.count}</td>
+      <td style="padding:3px 6px;text-align:right;color:#e65100">${p(m.interest)}</td>
+      <td style="padding:3px 6px;text-align:right;color:#b71c1c">${m.penalty>0?p(m.penalty):'—'}</td>
+      <td style="padding:3px 6px;text-align:right;color:#0d47a1">${m.principal>0?p(m.principal):'—'}</td>
+      <td style="padding:3px 6px;text-align:right;font-weight:700;color:${isPeak?'#1b5e20':isLean?'#b71c1c':'#111'}">${p(m.total)}</td>
+      <td style="padding:3px 8px">
+        <div style="background:#e0e0e0;border-radius:3px;height:8px;width:100%">
+          <div style="background:${isPeak?'#4caf50':isLean?'#f44336':'#1a3a6c'};height:8px;border-radius:3px;width:${barPct}%"></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // ── PER-BORROWER ANALYTICS ────────────────────────────
+  // For each borrower: compliance rate, total paid, total due
+  const borrowerAnalytics = [...DB.borrowers].sort((a,b)=>{
+    const ao=Number(a.principal_balance||0)+Number(a.total_interest_due||0)+Number(a.total_penalty_due||0);
+    const bo=Number(b.principal_balance||0)+Number(b.total_interest_due||0)+Number(b.total_penalty_due||0);
+    return bo-ao;
+  }).map((b,i)=>{
+    const prin   = Number(b.principal_balance  ||0);
+    const inter  = Number(b.total_interest_due ||0);
+    const pen    = Number(b.total_penalty_due  ||0);
+    const tot    = Math.round((prin+inter+pen)*100)/100;
+    const dues   = (DB.dues_by_borrower[b.Borrower_ID]||[])
+      .filter(d=>String(d.rowType||d.Row_Type||'Active').trim()!=='Projected');
+    const totalDue = dues.length;
+    const paid     = dues.filter(d=>(d.status||d.Status)==='Paid').length;
+    const partial  = dues.filter(d=>(d.status||d.Status)==='Partial').length;
+    const unpaid   = dues.filter(d=>(d.status||d.Status)==='Unpaid').length;
+    const compRate = totalDue>0?Math.round(paid/totalDue*100):100;
+    // Total ever paid by borrower
+    const bTxns   = allTxns.filter(t=>t.Borrower_ID===b.Borrower_ID&&String(t.Txn_Type||'').trim()==='Payment');
+    const bPaid   = bTxns.reduce((s,t)=>s+Number(t.Total_Amount||0),0);
+    const bLoaned = allTxns.filter(t=>t.Borrower_ID===b.Borrower_ID&&String(t.Txn_Type||'').trim()==='Loan')
+      .reduce((s,t)=>s+Number(t.Total_Amount||0),0);
+    // Late payment count
+    const lateCount = bTxns.filter(t=>{
+      const ts  = String(t.Timestamp||'');
+      const my  = ts.slice(0,7);
+      const due = dues.find(d=>(d.monthYear||d.Month_Year||'')===my);
+      if(!due) return false;
+      const tDay  = parseInt(ts.slice(8,10),10)||0;
+      const dDay  = parseInt(String(due.dueDate||due.Due_Date||'').slice(8,10),10)||0;
+      return dDay>0 && tDay>dDay;
+    }).length;
+
+    const statusColor = b.Status==='Closed'?'#555':unpaid>0?'#721c24':partial>0?'#7d4700':'#155724';
+    const statusBg    = b.Status==='Closed'?'#eee':unpaid>0?'#f8d7da':partial>0?'#fff3cd':'#d4edda';
+    const statusLabel = b.Status==='Closed'?'CLOSED':unpaid>0?`${unpaid} PAST DUE`:partial>0?`${partial} PARTIAL`:'CURRENT';
+
+    return `<tr style="background:${i%2===0?'#fafafa':'#fff'}">
+      <td style="padding:4px 6px;font-weight:600">${b.Full_Name}</td>
+      <td style="padding:4px 6px;text-align:right">${p(bLoaned)}</td>
+      <td style="padding:4px 6px;text-align:right;color:#155724">${p(bPaid)}</td>
+      <td style="padding:4px 6px;text-align:right;font-weight:700;color:${tot>0?'#b71c1c':'#155724'}">${tot>0?p(tot):'—'}</td>
+      <td style="padding:4px 6px;text-align:center">${totalDue}</td>
+      <td style="padding:4px 6px;text-align:center;color:#155724">${paid}</td>
+      <td style="padding:4px 6px;text-align:center;color:${unpaid>0?'#b71c1c':'#999'}">${unpaid>0?unpaid:'—'}</td>
+      <td style="padding:4px 6px;text-align:center">
+        <div style="font-size:.7rem;font-weight:700;color:${compRate>=90?'#155724':compRate>=70?'#7d4700':'#b71c1c'}">${compRate}%</div>
+        <div style="background:#e0e0e0;border-radius:2px;height:4px;margin-top:2px">
+          <div style="background:${compRate>=90?'#4caf50':compRate>=70?'#ff9800':'#f44336'};height:4px;border-radius:2px;width:${compRate}%"></div>
+        </div>
+      </td>
+      <td style="padding:4px 6px;text-align:center;color:${lateCount>0?'#e65100':'#155724'}">${lateCount>0?lateCount:'—'}</td>
+      <td style="padding:4px 6px;text-align:center">
+        <span style="background:${statusBg};color:${statusColor};padding:1px 5px;border-radius:3px;font-size:.65rem;font-weight:700">${statusLabel}</span>
+      </td>
+    </tr>`;
+  }).join('');
 
   // Per-borrower rows sorted by outstanding desc
   const borrowerRows = [...active].sort((a,b)=>{
@@ -1710,77 +1828,194 @@ function printPortfolio(){
   }).join('');
 
   printArea.innerHTML = `
-<div style="font-family:Arial,sans-serif;font-size:11px;color:#111;padding:8px">
+<div style="font-family:Arial,sans-serif;font-size:10.5px;color:#111;padding:8px">
 
   <!-- HEADER -->
   <div style="border-bottom:2.5px solid #1a3a6c;padding-bottom:6px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-end">
     <div>
-      <div style="font-size:1.15rem;font-weight:700;color:#1a3a6c">LOAN PORTFOLIO REPORT</div>
-      <div style="font-size:.72rem;color:#666">Complete financial summary — All borrowers</div>
+      <div style="font-size:1.15rem;font-weight:700;color:#1a3a6c">LOAN PORTFOLIO — FINANCIAL ANALYTICS REPORT</div>
+      <div style="font-size:.72rem;color:#666">Complete financial summary · All borrowers · Confidential</div>
     </div>
     <div style="text-align:right;font-size:.72rem;color:#666">As of: <b>${now}</b></div>
   </div>
 
-  <!-- PORTFOLIO SUMMARY CARDS -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
-    <div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:8px 10px;text-align:center">
-      <div style="font-size:.62rem;color:#2e7d32;text-transform:uppercase;font-weight:700">Active Borrowers</div>
-      <div style="font-size:1.3rem;font-weight:700;color:#1b5e20;margin-top:2px">${active.length}</div>
-      <div style="font-size:.62rem;color:#555">${closed.length} closed</div>
+  <!-- SECTION 1: PORTFOLIO OVERVIEW -->
+  <div style="font-size:.68rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:6px">1. Portfolio Overview</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px">
+    <div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:5px;padding:7px 8px;text-align:center">
+      <div style="font-size:.6rem;color:#2e7d32;font-weight:700;text-transform:uppercase">Active Borrowers</div>
+      <div style="font-size:1.4rem;font-weight:700;color:#1b5e20">${active.length}</div>
+      <div style="font-size:.6rem;color:#555">${closed.length} closed · ${active.length+closed.length} total</div>
     </div>
-    <div style="background:#fff8e1;border:1px solid #ffc107;border-radius:6px;padding:8px 10px;text-align:center">
-      <div style="font-size:.62rem;color:#7d4700;text-transform:uppercase;font-weight:700">Principal Out</div>
-      <div style="font-size:.85rem;font-weight:700;color:#7d4700;margin-top:2px">${p(totPrincipal)}</div>
-      <div style="font-size:.62rem;color:#555">Total loaned: ${p(totLoan)}</div>
+    <div style="background:#e3f2fd;border:1px solid #2196f3;border-radius:5px;padding:7px 8px;text-align:center">
+      <div style="font-size:.6rem;color:#0d47a1;font-weight:700;text-transform:uppercase">Total Loaned Out</div>
+      <div style="font-size:.85rem;font-weight:700;color:#0d47a1">${p(totLoanDisb)}</div>
+      <div style="font-size:.6rem;color:#555">Principal remaining: ${p(totPrincipal)}</div>
     </div>
-    <div style="background:#fff3e0;border:1px solid #ff9800;border-radius:6px;padding:8px 10px;text-align:center">
-      <div style="font-size:.62rem;color:#e65100;text-transform:uppercase;font-weight:700">Uncollected Interest</div>
-      <div style="font-size:.85rem;font-weight:700;color:#e65100;margin-top:2px">${p(totInterest)}</div>
-      <div style="font-size:.62rem;color:#555">Late charges: ${p(totPenalty)}</div>
+    <div style="background:#fff8e1;border:1px solid #ffc107;border-radius:5px;padding:7px 8px;text-align:center">
+      <div style="font-size:.6rem;color:#7d4700;font-weight:700;text-transform:uppercase">Total Collected</div>
+      <div style="font-size:.85rem;font-weight:700;color:#7d4700">${p(totPayCollected)}</div>
+      <div style="font-size:.6rem;color:#555">Int: ${p(totIntCollected)} · Pen: ${p(totPenCollected)}</div>
     </div>
-    <div style="background:#ffebee;border:1px solid #f44336;border-radius:6px;padding:8px 10px;text-align:center">
-      <div style="font-size:.62rem;color:#b71c1c;text-transform:uppercase;font-weight:700">Total Outstanding</div>
-      <div style="font-size:.85rem;font-weight:700;color:#b71c1c;margin-top:2px">${p(totOutstanding)}</div>
-      <div style="font-size:.62rem;color:#555">${overdueCount} with past due</div>
+    <div style="background:#ffebee;border:1px solid #f44336;border-radius:5px;padding:7px 8px;text-align:center">
+      <div style="font-size:.6rem;color:#b71c1c;font-weight:700;text-transform:uppercase">Total Outstanding</div>
+      <div style="font-size:.85rem;font-weight:700;color:#b71c1c">${p(totOutstanding)}</div>
+      <div style="font-size:.6rem;color:#555">Int: ${p(totInterest)} · Pen: ${p(totPenalty)}</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px">
+    <div style="background:#f5f5f5;border:1px solid #bbb;border-radius:5px;padding:7px 8px;text-align:center">
+      <div style="font-size:.6rem;color:#333;font-weight:700;text-transform:uppercase">Portfolio Health</div>
+      <div style="font-size:1rem;font-weight:700;color:${overdueCount===0?'#1b5e20':overdueCount/active.length<0.3?'#e65100':'#b71c1c'}">${pct(active.length-overdueCount,active.length)} current</div>
+      <div style="font-size:.6rem;color:#555">${overdueCount} past due · ${currentCount} current</div>
+    </div>
+    <div style="background:#f5f5f5;border:1px solid #bbb;border-radius:5px;padding:7px 8px;text-align:center">
+      <div style="font-size:.6rem;color:#333;font-weight:700;text-transform:uppercase">Collection Rate</div>
+      <div style="font-size:1rem;font-weight:700;color:#0d47a1">${pct(totPayCollected,totLoanDisb)}</div>
+      <div style="font-size:.6rem;color:#555">collected vs. loaned</div>
+    </div>
+    <div style="background:#f5f5f5;border:1px solid #bbb;border-radius:5px;padding:7px 8px;text-align:center">
+      <div style="font-size:.6rem;color:#333;font-weight:700;text-transform:uppercase">Avg Monthly Collection</div>
+      <div style="font-size:.85rem;font-weight:700;color:#0d47a1">${p(avgMonthly)}</div>
+      <div style="font-size:.6rem;color:#555">over ${totalMonths} month${totalMonths!==1?'s':''}</div>
+    </div>
+    <div style="background:#f5f5f5;border:1px solid #bbb;border-radius:5px;padding:7px 8px;text-align:center">
+      <div style="font-size:.6rem;color:#333;font-weight:700;text-transform:uppercase">Late Charge Rate</div>
+      <div style="font-size:1rem;font-weight:700;color:${totPenalty>0?'#b71c1c':'#1b5e20'}">${pct(totPenalty,totInterest+totPenalty)}</div>
+      <div style="font-size:.6rem;color:#555">of total interest+penalties</div>
     </div>
   </div>
 
-  <!-- BORROWER TABLE -->
-  <div style="font-size:.68rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:4px">Borrower Accounts</div>
-  <table style="width:100%;border-collapse:collapse;font-size:.76rem;margin-bottom:8px">
+  <!-- SECTION 2: MONTHLY COLLECTION ANALYTICS -->
+  <div style="font-size:.68rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:4px">2. Monthly Collection Analytics</div>
+  ${monthlyArr.length>0?`
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px">
+    <div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:5px;padding:6px 10px">
+      <div style="font-size:.6rem;color:#2e7d32;font-weight:700;text-transform:uppercase">🔝 Peak Collection Month</div>
+      <div style="font-size:.88rem;font-weight:700;color:#1b5e20;margin-top:2px">${new Date((peakMonth.month||'2000-01')+'-15').toLocaleDateString('en-PH',{month:'long',year:'numeric'})}</div>
+      <div style="font-size:.78rem;font-weight:700;color:#1b5e20">${p(peakMonth.total)}</div>
+      <div style="font-size:.6rem;color:#555">${peakMonth.count} payment${peakMonth.count!==1?'s':''} received</div>
+    </div>
+    <div style="background:#ffebee;border:1px solid #f44336;border-radius:5px;padding:6px 10px">
+      <div style="font-size:.6rem;color:#b71c1c;font-weight:700;text-transform:uppercase">📉 Lean Collection Month</div>
+      <div style="font-size:.88rem;font-weight:700;color:#b71c1c;margin-top:2px">${new Date((leanMonth.month||'2000-01')+'-15').toLocaleDateString('en-PH',{month:'long',year:'numeric'})}</div>
+      <div style="font-size:.78rem;font-weight:700;color:#b71c1c">${p(leanMonth.total)}</div>
+      <div style="font-size:.6rem;color:#555">${leanMonth.count||0} payment${(leanMonth.count||0)!==1?'s':''} received</div>
+    </div>
+    <div style="background:#e3f2fd;border:1px solid #2196f3;border-radius:5px;padding:6px 10px">
+      <div style="font-size:.6rem;color:#0d47a1;font-weight:700;text-transform:uppercase">📊 Monthly Average</div>
+      <div style="font-size:.88rem;font-weight:700;color:#0d47a1;margin-top:2px">${p(avgMonthly)}</div>
+      <div style="font-size:.6rem;color:#555">across ${totalMonths} month${totalMonths!==1?'s':''} of data</div>
+      <div style="font-size:.6rem;color:#555">Total collections: ${p(totPayCollected)}</div>
+    </div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:10px">
     <thead>
       <tr style="background:#1a3a6c;color:#fff">
-        <th style="padding:5px 6px;text-align:left">Borrower Name</th>
-        <th style="padding:5px 6px;text-align:center">Due Day</th>
-        <th style="padding:5px 6px;text-align:right">Principal</th>
-        <th style="padding:5px 6px;text-align:right">Accrued Interest</th>
-        <th style="padding:5px 6px;text-align:right">Late Charges</th>
-        <th style="padding:5px 6px;text-align:right">Total Due</th>
-        <th style="padding:5px 6px;text-align:center">Account Status</th>
+        <th style="padding:4px 6px;text-align:left">Month</th>
+        <th style="padding:4px 6px;text-align:center">Payments</th>
+        <th style="padding:4px 6px;text-align:right">Interest Collected</th>
+        <th style="padding:4px 6px;text-align:right">Late Charges</th>
+        <th style="padding:4px 6px;text-align:right">Principal Paid</th>
+        <th style="padding:4px 6px;text-align:right">Total Collected</th>
+        <th style="padding:4px 6px;text-align:left" style="width:80px">vs. Peak</th>
       </tr>
     </thead>
-    <tbody>${borrowerRows||'<tr><td colspan="7" style="text-align:center;padding:12px;color:#999">No active borrowers</td></tr>'}</tbody>
+    <tbody>${monthRows}</tbody>
     <tfoot>
-      <tr style="background:#1a3a6c;color:#fff;font-weight:700">
-        <td style="padding:5px 6px" colspan="2">TOTAL (${active.length} borrowers)</td>
-        <td style="padding:5px 6px;text-align:right">${p(totPrincipal)}</td>
-        <td style="padding:5px 6px;text-align:right">${p(totInterest)}</td>
-        <td style="padding:5px 6px;text-align:right">${p(totPenalty)}</td>
-        <td style="padding:5px 6px;text-align:right">${p(totOutstanding)}</td>
-        <td style="padding:5px 6px;text-align:center">${overdueCount} past due</td>
+      <tr style="background:#37474f;color:#fff;font-weight:700">
+        <td style="padding:4px 6px">TOTAL (${totalMonths} months)</td>
+        <td style="padding:4px 6px;text-align:center">${monthlyArr.reduce((s,m)=>s+m.count,0)}</td>
+        <td style="padding:4px 6px;text-align:right">${p(totIntCollected)}</td>
+        <td style="padding:4px 6px;text-align:right">${p(totPenCollected)}</td>
+        <td style="padding:4px 6px;text-align:right">${p(totPrinCollected)}</td>
+        <td style="padding:4px 6px;text-align:right">${p(totPayCollected)}</td>
+        <td style="padding:4px 6px"></td>
       </tr>
     </tfoot>
+  </table>`
+  :'<div style="color:#999;font-size:.78rem;padding:8px;margin-bottom:10px">No payment transactions recorded yet.</div>'}
+
+  <!-- SECTION 3: BORROWER PERFORMANCE TABLE -->
+  <div style="font-size:.68rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:4px">3. Borrower Performance Analysis</div>
+  <table style="width:100%;border-collapse:collapse;font-size:.73rem;margin-bottom:8px">
+    <thead>
+      <tr style="background:#1a3a6c;color:#fff">
+        <th style="padding:4px 5px;text-align:left">Borrower</th>
+        <th style="padding:4px 5px;text-align:right">Total Loaned</th>
+        <th style="padding:4px 5px;text-align:right">Total Paid</th>
+        <th style="padding:4px 5px;text-align:right">Outstanding</th>
+        <th style="padding:4px 5px;text-align:center">Sched.</th>
+        <th style="padding:4px 5px;text-align:center">Paid</th>
+        <th style="padding:4px 5px;text-align:center">Unpaid</th>
+        <th style="padding:4px 5px;text-align:center">Compliance</th>
+        <th style="padding:4px 5px;text-align:center">Late Pmts</th>
+        <th style="padding:4px 5px;text-align:center">Status</th>
+      </tr>
+    </thead>
+    <tbody>${borrowerAnalytics||'<tr><td colspan="10" style="text-align:center;padding:12px;color:#999">No borrowers</td></tr>'}</tbody>
+  </table>
+  <div style="font-size:.63rem;color:#888;margin-bottom:8px">
+    <b>Compliance Rate</b> = months paid in full ÷ total scheduled months · <b>Late Payments</b> = payments received after due date
+  </div>
+
+  <!-- SECTION 4: OUTSTANDING BALANCE BREAKDOWN -->
+  <div style="font-size:.68rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:4px">4. Outstanding Balance — Borrower Summary</div>
+  <table style="width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:8px">
+    <thead>
+      <tr style="background:#37474f;color:#fff">
+        <th style="padding:4px 6px;text-align:left">Borrower</th>
+        <th style="padding:4px 6px;text-align:center">Due Day</th>
+        <th style="padding:4px 6px;text-align:right">Principal Balance</th>
+        <th style="padding:4px 6px;text-align:right">Accrued Interest</th>
+        <th style="padding:4px 6px;text-align:right">Late Charges</th>
+        <th style="padding:4px 6px;text-align:right">Total Amount Due</th>
+        <th style="padding:4px 6px;text-align:center">Account Status</th>
+      </tr>
+    </thead>
+    <tbody>${[...active].sort((a,b)=>{
+      const ao=Number(a.principal_balance||0)+Number(a.total_interest_due||0)+Number(a.total_penalty_due||0);
+      const bo=Number(b.principal_balance||0)+Number(b.total_interest_due||0)+Number(b.total_penalty_due||0);
+      return bo-ao;
+    }).map((b,i)=>{
+      const prin=Number(b.principal_balance||0);
+      const inter=Number(b.total_interest_due||0);
+      const pen=Number(b.total_penalty_due||0);
+      const tot=Math.round((prin+inter+pen)*100)/100;
+      const dues=(DB.dues_by_borrower[b.Borrower_ID]||[]).filter(d=>String(d.rowType||d.Row_Type||'Active').trim()!=='Projected');
+      const unpd=dues.filter(d=>(d.status||d.Status)!=='Paid').length;
+      const stBg=unpd>0?'#f8d7da':'#d4edda';
+      const stFg=unpd>0?'#721c24':'#155724';
+      const stLbl=unpd>0?`${unpd} PAST DUE`:'CURRENT';
+      return `<tr style="background:${i%2===0?'#fafafa':'#fff'}">
+        <td style="padding:4px 6px;font-weight:600">${b.Full_Name}</td>
+        <td style="padding:4px 6px;text-align:center">${_ord(b.Ref_Due_Date||1)}</td>
+        <td style="padding:4px 6px;text-align:right">${p(prin)}</td>
+        <td style="padding:4px 6px;text-align:right;color:#e65100">${inter>0?p(inter):'—'}</td>
+        <td style="padding:4px 6px;text-align:right;color:#b71c1c">${pen>0?p(pen):'—'}</td>
+        <td style="padding:4px 6px;text-align:right;font-weight:700">${p(tot)}</td>
+        <td style="padding:4px 6px;text-align:center"><span style="background:${stBg};color:${stFg};padding:1px 5px;border-radius:3px;font-size:.65rem;font-weight:700">${stLbl}</span></td>
+      </tr>`;
+    }).join('')}
+    <tr style="background:#1a3a6c;color:#fff;font-weight:700">
+      <td style="padding:5px 6px" colspan="2">PORTFOLIO TOTAL</td>
+      <td style="padding:5px 6px;text-align:right">${p(totPrincipal)}</td>
+      <td style="padding:5px 6px;text-align:right">${p(totInterest)}</td>
+      <td style="padding:5px 6px;text-align:right">${p(totPenalty)}</td>
+      <td style="padding:5px 6px;text-align:right">${p(totOutstanding)}</td>
+      <td style="padding:5px 6px;text-align:center">${overdueCount} past due</td>
+    </tr>
+    </tbody>
   </table>
 
-  <!-- CLOSED ACCOUNTS -->
-  ${closed.length>0?`<div style="font-size:.68rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid #ccc;padding-bottom:2px;margin-bottom:4px">Closed Accounts (${closed.length})</div>
-  <div style="font-size:.74rem;color:#888">${closed.map(b=>b.Full_Name).join(' · ')}</div>
-  <div style="margin-bottom:8px"></div>`:''}
+  ${closed.length>0?`<!-- SECTION 5: CLOSED ACCOUNTS -->
+  <div style="font-size:.68rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid #ccc;padding-bottom:2px;margin-bottom:4px">5. Closed Accounts (${closed.length})</div>
+  <div style="font-size:.74rem;color:#888;margin-bottom:8px">${closed.map(b=>b.Full_Name).join(' · ')}</div>`:''}
 
   <!-- FOOTER -->
-  <div style="border-top:1px solid #ccc;padding-top:5px;font-size:.64rem;color:#999;display:flex;justify-content:space-between">
+  <div style="border-top:1px solid #ccc;padding-top:5px;font-size:.63rem;color:#999;display:flex;justify-content:space-between;margin-top:4px">
     <div>Generated: ${now} · LoanBook System</div>
-    <div>Confidential — For internal use only</div>
+    <div>Confidential — For internal use only · Not an official financial statement</div>
   </div>
 </div>`;
 
