@@ -665,10 +665,10 @@ window.addEventListener('offline',updateNetworkUI);
 //  SYNC
 // ═══════════════════════════════════════════════════════
 async function syncData(){
-  if(!isOnline()){showToast('Offline — cannot sync','error');return}
+  if(!isOnline()){showToast('Offline — cannot sync','error');return;}
   const btn=document.getElementById('sync-btn');
   const lbl=document.getElementById('sync-label');
-  btn.classList.add('syncing'); lbl.textContent='SYNCING';
+  btn.classList.add('syncing'); lbl.textContent='…';
   await flushQueue();
   try{
     const resp=await fetch(_getURL()+'?action=sync&_tk='+encodeURIComponent(_tk()));
@@ -678,11 +678,18 @@ async function syncData(){
     DB.borrowers        = data.borrowers        || [];
     DB.dues_by_borrower = data.dues_by_borrower || {};
     DB.transactions     = data.transactions     || [];
-    DB.last_sync    = new Date().toISOString();
+    DB.last_sync        = new Date().toISOString();
     await idbSet('DB',DB);
-    renderDashboard();
+    // Smart re-render: only update what's visible
+    const activeId = (document.querySelector('.screen.active')||{}).id||'';
+    if(activeId==='screen-profile'&&currentBorrowerId){
+      openProfile(currentBorrowerId);
+    } else {
+      renderDashboard();
+      renderBorrowers();
+    }
     showToast('Synced ✓','success');
-  }catch(err){showToast('Sync failed: '+err.message,'error')}
+  }catch(err){showToast('Sync failed: '+err.message,'error');}
   btn.classList.remove('syncing');
   btn.classList.add('online');
   lbl.textContent='SYNC';
@@ -1556,36 +1563,39 @@ function printSummary(){
       <div style="font-size:.74rem;font-weight:600;margin-top:4px;color:${unpaidMonths.length>0?'#721c24':'#155724'}">
         ${unpaidMonths.length>0?`⚠ ${unpaidMonths.length} month${unpaidMonths.length>1?'s':''} past due`:'✓ Account current — no past due'}
       </div>
+      ${_isDueToday?`<div style="font-size:.72rem;font-weight:600;color:#0d47a1;margin-top:4px">📅 Payment due today</div>`:''}
     </div>
     <div style="background:#fffde7;border:1px solid #e0c040;border-radius:6px;padding:10px 12px">
       <div style="font-size:.65rem;font-weight:700;color:#7d4700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Outstanding Balance</div>
       <table style="width:100%;border-collapse:collapse;font-size:.8rem">
         <tr><td style="color:#333;padding:2px 0">Principal Balance</td><td style="text-align:right;font-weight:600">${p(principal)}</td></tr>
-        <tr><td style="color:#e65100;padding:2px 0">Accrued Interest</td><td style="text-align:right;font-weight:600;color:#e65100">${p(interest)}</td></tr>
-        <tr><td style="color:#b71c1c;padding:2px 0">Late Charges</td><td style="text-align:right;font-weight:600;color:#b71c1c">${p(penalty)}</td></tr>
-        <tr style="border-top:1.5px solid #e0c040;margin-top:3px">
+        <tr>
+          <td style="color:#e65100;padding:2px 0">
+            Accrued Interest
+            ${_isDueToday&&_todayInt>0?`<span style="font-size:.65rem;color:#0d47a1;font-weight:600"> (incl. today's ${p(_todayInt)})</span>`:''}
+          </td>
+          <td style="text-align:right;font-weight:600;color:#e65100">${p(_isDueToday ? Math.round((interest+_todayInt)*100)/100 : interest)}</td>
+        </tr>
+        <tr>
+          <td style="color:#b71c1c;padding:2px 0">
+            Late Charges
+            ${!_isDueToday&&_todayPen>0?`<span style="font-size:.65rem;color:#b71c1c;font-weight:600"> (incl. penalty ${p(_todayPen)})</span>`:''}
+          </td>
+          <td style="text-align:right;font-weight:600;color:#b71c1c">${p(!_isDueToday ? Math.round((penalty+_todayPen)*100)/100 : penalty)}</td>
+        </tr>
+        <tr style="border-top:1.5px solid #e0c040">
           <td style="font-weight:700;padding-top:5px">Total Amount Due</td>
-          <td style="text-align:right;font-weight:700;font-size:.9rem;color:#b71c1c;padding-top:5px">${p(total)}</td>
+          <td style="text-align:right;font-weight:700;font-size:.9rem;color:#b71c1c;padding-top:5px">
+            ${p(_isDueToday
+              ? Math.round((total+_todayInt)*100)/100
+              : Math.round((total+_todayPen)*100)/100)}
+          </td>
         </tr>
       </table>
+      ${_isDueToday?`<div style="font-size:.63rem;color:#0d47a1;margin-top:4px">Today's interest included. Late charge of ${p(_todayPen)} applies if paid after today.</div>`:''}
+      ${!_isDueToday&&_todayPen>0?`<div style="font-size:.63rem;color:#b71c1c;margin-top:4px">Penalty included — payment was due on the ${_ord(b.Ref_Due_Date||1)}.</div>`:''}
     </div>
   </div>
-
-  <!-- WHAT TO PAY TODAY (only if due today OR has arrears) -->
-  ${(_isDueToday || _payNow > 0) ? `<div style="background:#e8f5e9;border:1.5px solid #4caf50;border-radius:6px;padding:10px 12px;margin-bottom:10px">
-    <div style="font-size:.65rem;font-weight:700;color:#1b5e20;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">
-      ${_isDueToday ? '📋 Amount to Pay Today' : '📋 Arrears — Overdue Amount'}
-    </div>
-    <div style="display:grid;grid-template-columns:${_isDueToday?'1fr 1fr 1fr':'1fr 1fr'};gap:8px">
-      ${_isDueToday ? `<div><div style="font-size:.68rem;color:#2e7d32">This month's interest</div><div style="font-size:.9rem;font-weight:700;color:#1b5e20">${p(_todayInt)}</div></div>` : ''}
-      ${_priorIntBal>0||_priorPenBal>0 ? `<div><div style="font-size:.68rem;color:#b71c1c">Prior unpaid balance</div><div style="font-size:.9rem;font-weight:700;color:#b71c1c">${p(_priorIntBal+_priorPenBal)}</div></div>` : ''}
-      <div style="border-left:2px solid #4caf50;padding-left:8px">
-        <div style="font-size:.68rem;color:#1b5e20;font-weight:600">PAY NOW (on time)</div>
-        <div style="font-size:1rem;font-weight:700;color:#1b5e20">${p(_payNow)}</div>
-        ${_isDueToday&&_todayPen>0?`<div style="font-size:.65rem;color:#e65100;margin-top:2px">Pay late → +${p(_todayPen)} late charge → Total: ${p(_payLate)}</div>`:''}
-      </div>
-    </div>
-  </div>` : ''}
 
   <!-- PAYMENT SCHEDULE -->
   <div style="font-size:.68rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;border-bottom:1.5px solid #1a3a6c;padding-bottom:2px;margin-bottom:4px">Monthly Payment Schedule</div>
@@ -2221,6 +2231,7 @@ function _changePIN(){
 //  BOOT
 // ═══════════════════════════════════════════════════════
 async function _bootApp(){
+  // 1. Render from IndexedDB cache instantly — no network wait
   const cached=await idbGet('DB');
   if(cached){
     DB=cached;
@@ -2230,7 +2241,12 @@ async function _bootApp(){
   }
   updateNetworkUI();
   updateQueueBadge();
-  if(isOnline()) syncData();
+
+  // 2. Sync in background — don't await, UI is already responsive
+  if(isOnline()){
+    // Small delay so the UI paints first before the network request
+    setTimeout(()=>syncData(), 50);
+  }
 }
 
 async function boot(){
