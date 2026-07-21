@@ -1,5 +1,5 @@
-// LoanBook Service Worker v4
-const CACHE = 'loanbook-v4';
+// LoanBook Service Worker v5
+const CACHE = 'loanbook-v5';
 const ASSETS = [
   './',
   './index.html',
