@@ -120,7 +120,10 @@ button{cursor:pointer;border:none;background:none;color:inherit}
   }
   @page {
     margin: 8mm 8mm;
-    size: A4 portrait;
+    size: auto;
+    /* Suppress browser-added URL/date headers and footers */
+    margin-top: 8mm;
+    margin-bottom: 8mm;
   }
   /* Force everything to fit on 1 page */
   #print-area > div {
@@ -187,6 +190,13 @@ button{cursor:pointer;border:none;background:none;color:inherit}
 .stat-sub{font-size:.68rem;font-family:var(--mono);color:var(--text2);margin-top:4px}
 
 /* ── SEARCH ── */
+.collapsible-header{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;margin-top:10px;margin-bottom:0;user-select:none;-webkit-tap-highlight-color:transparent}
+.collapsible-header span{font-size:.72rem;font-family:var(--mono);letter-spacing:.1em;color:var(--text3);text-transform:uppercase;font-weight:600}
+.collapsible-header:active{background:var(--border)}
+.collapsible-body{overflow:hidden;max-height:0;transition:max-height .28s ease-out;margin-bottom:0}
+.collapsible-body.open{max-height:9999px;margin-bottom:4px}
+.sec-badge{font-size:.62rem;font-family:var(--mono);background:var(--border2);color:var(--text3);padding:1px 7px;border-radius:10px;font-weight:600}
+.sec-badge-red{background:rgba(255,77,109,.18);color:var(--red)}
 .search-wrap{position:relative;margin-bottom:12px}
 .search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;color:var(--text3)}
 .search-input{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);padding:10px 12px 10px 36px;font-size:.9rem;outline:none;transition:border-color .2s}
@@ -380,25 +390,59 @@ button{cursor:pointer;border:none;background:none;color:inherit}
       </div>
     </div>
 
-    <!-- Due Today -->
-    <div class="section-label">📅 Due Today</div>
-    <div id="due-today-list"></div>
-
-    <!-- Due This Week -->
-    <div class="section-label">📆 Due This Week</div>
-    <div id="due-week-list"></div>
-
-    <!-- Needs attention (overdue) -->
-    <div class="section-label" id="attn-label">⚠️ Overdue — Needs Attention</div>
-    <div id="overdue-list"></div>
-
-    <!-- Search + all borrowers -->
-    <div class="section-label">All Borrowers</div>
-    <div class="search-wrap">
+    <!-- Search — below stats, above all sections -->
+    <div class="search-wrap" style="margin-top:14px;margin-bottom:4px">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input class="search-input" id="search-input" placeholder="Search by name…" oninput="filterBorrowers(this.value)">
+      <input class="search-input" id="search-input" placeholder="Search borrower by name…" oninput="filterBorrowers(this.value)">
     </div>
-    <div id="borrower-list"></div>
+
+    <!-- Due Today (collapsible) -->
+    <div class="collapsible-header" onclick="toggleSection('due-today-body','due-today-arrow')">
+      <span>📅 Due Today</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span id="due-today-badge" class="sec-badge"></span>
+        <svg id="due-today-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px;transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div id="due-today-body" class="collapsible-body">
+      <div id="due-today-list"></div>
+    </div>
+
+    <!-- Due This Week (collapsible) -->
+    <div class="collapsible-header" onclick="toggleSection('due-week-body','due-week-arrow')">
+      <span>📆 Due This Week</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span id="due-week-badge" class="sec-badge"></span>
+        <svg id="due-week-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px;transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div id="due-week-body" class="collapsible-body">
+      <div id="due-week-list"></div>
+    </div>
+
+    <!-- Overdue (collapsible, open by default) -->
+    <div class="collapsible-header" onclick="toggleSection('overdue-body','overdue-arrow')" id="attn-label">
+      <span>⚠️ Overdue — Needs Attention</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span id="overdue-badge" class="sec-badge sec-badge-red"></span>
+        <svg id="overdue-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px;transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div id="overdue-body" class="collapsible-body">
+      <div id="overdue-list"></div>
+    </div>
+
+    <!-- All Borrowers (collapsible) -->
+    <div class="collapsible-header" onclick="toggleSection('borrower-body','borrower-arrow')">
+      <span>👥 All Borrowers</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span id="borrower-badge" class="sec-badge"></span>
+        <svg id="borrower-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px;transition:transform .2s;transform:rotate(180deg)"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div id="borrower-body" class="collapsible-body open">
+      <div id="borrower-list"></div>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════
@@ -806,6 +850,8 @@ function renderDashboard(){
   dueTodayEl.innerHTML = todayList.length
     ? todayList.map(b=>_collectionCardHTML(b,'today')).join('')
     : '<div class="empty" style="padding:10px 0">✅ No collections due today.</div>';
+  const todayBadge = document.getElementById('due-today-badge');
+  if(todayBadge) todayBadge.textContent = todayList.length ? todayList.length : '';
 
   // ── Due This Week ──
   const weekList = active
@@ -819,6 +865,8 @@ function renderDashboard(){
   dueWeekEl.innerHTML = weekList.length
     ? weekList.map(b=>_collectionCardHTML(b,'week')).join('')
     : '<div class="empty" style="padding:10px 0">📆 No collections in the next 7 days.</div>';
+  const weekBadge = document.getElementById('due-week-badge');
+  if(weekBadge) weekBadge.textContent = weekList.length ? weekList.length : '';
 
   // ── Overdue / Unpaid ──
   const overdueList = active.filter(b=>{
@@ -830,8 +878,16 @@ function renderDashboard(){
   document.getElementById('overdue-list').innerHTML = overdueList.length
     ? overdueList.sort((a,b)=>a.Full_Name.localeCompare(b.Full_Name)).map(b=>borrowerCardHTML(b)).join('')
     : '<div class="empty" style="padding:10px 0">✅ No overdue borrowers.</div>';
+  const overdueBadge = document.getElementById('overdue-badge');
+  if(overdueBadge){
+    overdueBadge.textContent = overdueList.length ? overdueList.length : '';
+    overdueBadge.className   = 'sec-badge'+(overdueList.length?' sec-badge-red':'');
+  }
 
   renderBorrowerList(DB.borrowers);
+
+  // Auto-expand sections with content, collapse empty ones
+  _autoExpandSections(todayList.length, weekList.length, overdueList.length);
 }
 
 // Compact collection card for Due Today / Due This Week sections
@@ -917,6 +973,8 @@ function _collectionCardHTML(b, mode){
 
 function renderBorrowerList(list){
   const el=document.getElementById('borrower-list');
+  const badge=document.getElementById('borrower-badge');
+  if(badge) badge.textContent=list.length?list.length:'';
   if(!list.length){
     el.innerHTML='<div class="empty"><span class="ico">📋</span>No borrowers yet.<br>Tap Add to get started.</div>';
     return;
@@ -1402,12 +1460,12 @@ function closeModal(){
 //  TOAST
 // ═══════════════════════════════════════════════════════
 let toastTimer;
-function showToast(msg,type){
+function showToast(msg,type,duration){
   const el=document.getElementById('toast');
   el.textContent=msg;
   el.className='show '+(type||'');
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>{el.className=''},2800);
+  toastTimer=setTimeout(()=>{el.className=''},duration||2800);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1454,6 +1512,32 @@ function fmtDate(val){
 }
 function fmt(n){
   return '₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+// ═══════════════════════════════════════════════════════
+//  COLLAPSIBLE SECTIONS
+// ═══════════════════════════════════════════════════════
+function toggleSection(bodyId, arrowId){
+  const body  = document.getElementById(bodyId);
+  const arrow = document.getElementById(arrowId);
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  if(arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+// Auto-expand Due Today if there are entries, collapse if empty
+function _autoExpandSections(todayCount, weekCount, overdueCount){
+  const expand = (bodyId, arrowId, open) => {
+    const body  = document.getElementById(bodyId);
+    const arrow = document.getElementById(arrowId);
+    if(!body) return;
+    body.classList.toggle('open', open);
+    if(arrow) arrow.style.transform = open ? 'rotate(180deg)' : 'rotate(0deg)';
+  };
+  expand('due-today-body', 'due-today-arrow', todayCount > 0);
+  expand('due-week-body',  'due-week-arrow',  weekCount  > 0);
+  expand('overdue-body',   'overdue-arrow',   overdueCount > 0);
+  expand('borrower-body',  'borrower-arrow',  true); // always open
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1661,6 +1745,8 @@ function printSummary(){
 </div>`;
 
   printArea.style.display='block';
+  // Show hint about disabling browser headers/footers
+  showToast('Tip: In print dialog → uncheck "Headers and footers" to remove URL','success',5000);
   window.print();
   printArea.style.display='none';
 }
@@ -2030,6 +2116,7 @@ function printPortfolio(){
 </div>`;
 
   printArea.style.display='block';
+  showToast('Tip: In print dialog → uncheck "Headers and footers" to remove URL','success',5000);
   window.print();
   printArea.style.display='none';
 }
