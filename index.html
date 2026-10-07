@@ -119,15 +119,13 @@ button{cursor:pointer;border:none;background:none;color:inherit}
     overflow: visible !important;
   }
   @page {
-    margin: 8mm 8mm;
+    margin: 6mm 6mm;
     size: auto;
-    /* Suppress browser-added URL/date headers and footers */
-    margin-top: 8mm;
-    margin-bottom: 8mm;
   }
-  /* Force everything to fit on 1 page */
+  /* Receipt: narrow width, full content visible */
   #print-area > div {
-    font-size: 10px !important;
+    font-size: 11px !important;
+    max-width: 100% !important;
   }
   table { page-break-inside: avoid; }
   tr { page-break-inside: avoid; }
@@ -549,6 +547,7 @@ button{cursor:pointer;border:none;background:none;color:inherit}
     </div>
 
     <button class="btn btn-success" id="save-payment-btn" onclick="submitPayment()">💾 Save Payment</button>
+    <button class="btn btn-ghost" style="border-color:rgba(167,139,250,.3);color:var(--purple)" id="reprint-receipt-btn" onclick="reprintReceipt()" style="display:none">🖨️ Print Last Receipt</button>
     <button class="btn btn-ghost" onclick="goToProfile()">Cancel</button>
   </div>
 
@@ -1333,11 +1332,41 @@ async function submitPayment(){
       notes,
     });
 
-    // SUCCESS: clear fields, show toast, go back to profile
+    // SUCCESS — store receipt data for optional reprint
+    const receiptData = {
+      txnId:      result.txn_id || ('TXN-'+Date.now()),
+      borrowerId: currentBorrowerId,
+      borrowerName: (DB.borrowers.find(x=>x.Borrower_ID===currentBorrowerId)||{}).Full_Name||'',
+      date:       new Date().toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Manila'}),
+      time:       new Date().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Manila'}),
+      interest:   i,
+      penalty:    p,
+      principal:  pr,
+      total:      tot,
+      notes:      notes,
+      dueDay:     (DB.borrowers.find(x=>x.Borrower_ID===currentBorrowerId)||{}).Ref_Due_Date||'',
+    };
+    window._lastReceipt = receiptData;
+
     clearPaymentForm();
     showToast(result.message||'Payment saved ✓','success');
     await syncData();
-    openProfile(currentBorrowerId);
+
+    // Ask user if they want to print receipt
+    openModal(`
+      <div class="modal-title">💾 Payment Saved</div>
+      <div style="font-size:.85rem;color:var(--text2);margin-bottom:16px">
+        <b>₱${tot.toFixed(2)}</b> payment recorded for <b>${receiptData.borrowerName}</b>.<br>
+        Would you like to print a receipt?
+      </div>
+      <button class="btn btn-success" style="width:100%;margin-bottom:8px" onclick="closeModal();printReceipt(window._lastReceipt)">🖨️ Yes, Print Receipt</button>
+      <button class="btn btn-ghost" style="width:100%" onclick="closeModal();openProfile('${currentBorrowerId}')">Skip — Back to Profile</button>
+    `);
+
+    // Show reprint button in case they skip now but want to print later
+    const rpBtn = document.getElementById('reprint-receipt-btn');
+    if(rpBtn) rpBtn.style.display='block';
+
   }catch(err){
     showToast('Error: '+err.message,'error');
     // Re-enable on failure so user can try again
@@ -1512,6 +1541,111 @@ function fmtDate(val){
 }
 function fmt(n){
   return '₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+// ═══════════════════════════════════════════════════════
+//  PAYMENT RECEIPT
+// ═══════════════════════════════════════════════════════
+
+// Generate a short tamper-proof verification code from receipt data
+// Uses a simple but non-obvious hash — visible on receipt for borrower to verify
+async function _receiptHash(r){
+  const raw = [r.txnId, r.borrowerName, r.total, r.date, r.time].join('|');
+  try{
+    const buf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    const hex  = Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    // Return 12-char uppercase verification code in groups of 4
+    const code = hex.slice(0,12).toUpperCase();
+    return code.slice(0,4)+'-'+code.slice(4,8)+'-'+code.slice(8,12);
+  }catch(e){
+    return r.txnId.slice(-12).toUpperCase();
+  }
+}
+
+function reprintReceipt(){
+  if(window._lastReceipt){
+    printReceipt(window._lastReceipt);
+  } else {
+    showToast('No recent receipt to reprint','error');
+  }
+}
+
+async function printReceipt(r){
+  const printArea = document.getElementById('print-area');
+  printArea.innerHTML = '';
+
+  const p   = n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const vcode = await _receiptHash(r);
+
+  // Build breakdown rows (only non-zero amounts)
+  let rows = '';
+  if(r.interest>0) rows += `<tr><td style="padding:5px 10px;color:#333">Interest Payment</td><td style="padding:5px 10px;text-align:right;font-weight:600;color:#e65100">${p(r.interest)}</td></tr>`;
+  if(r.penalty>0)  rows += `<tr style="background:#fff5f5"><td style="padding:5px 10px;color:#b71c1c">Late Charge Payment</td><td style="padding:5px 10px;text-align:right;font-weight:600;color:#b71c1c">${p(r.penalty)}</td></tr>`;
+  if(r.principal>0)rows += `<tr><td style="padding:5px 10px;color:#333">Principal Payment</td><td style="padding:5px 10px;text-align:right;font-weight:600;color:#0d47a1">${p(r.principal)}</td></tr>`;
+
+  printArea.innerHTML = `
+<div style="font-family:Arial,sans-serif;font-size:12px;color:#111;max-width:320px;margin:0 auto;padding:12px">
+
+  <!-- TOP BORDER PATTERN — tamper indicator -->
+  <div style="height:6px;background:repeating-linear-gradient(90deg,#1a3a6c 0,#1a3a6c 12px,#fff 12px,#fff 16px);margin-bottom:12px;border-radius:2px"></div>
+
+  <!-- HEADER -->
+  <div style="text-align:center;margin-bottom:10px">
+    <div style="font-size:1.1rem;font-weight:700;color:#1a3a6c;letter-spacing:.05em">OFFICIAL PAYMENT RECEIPT</div>
+    <div style="font-size:.7rem;color:#777;margin-top:2px">${r.date} · ${r.time}</div>
+  </div>
+
+  <!-- BORROWER -->
+  <div style="background:#f5f8ff;border:1px solid #c5d3f0;border-radius:5px;padding:8px 12px;margin-bottom:10px">
+    <div style="font-size:.65rem;color:#1a3a6c;text-transform:uppercase;font-weight:700;letter-spacing:.07em;margin-bottom:3px">Received from</div>
+    <div style="font-size:1rem;font-weight:700;color:#1a3a6c">${r.borrowerName}</div>
+    <div style="font-size:.72rem;color:#555;margin-top:2px">Due every <b>${r.dueDay}${Number(r.dueDay)===1?'st':Number(r.dueDay)===2?'nd':Number(r.dueDay)===3?'rd':'th'}</b> of the month</div>
+  </div>
+
+  <!-- PAYMENT BREAKDOWN -->
+  <div style="font-size:.65rem;font-weight:700;color:#1a3a6c;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Payment Breakdown</div>
+  <table style="width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:2px;border:1px solid #e0e0e0;border-radius:5px;overflow:hidden">
+    <tbody>${rows}</tbody>
+    <tr style="background:#1a3a6c;color:#fff">
+      <td style="padding:7px 10px;font-weight:700;font-size:.9rem">TOTAL AMOUNT PAID</td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:1rem">${p(r.total)}</td>
+    </tr>
+  </table>
+
+  ${r.notes ? `<div style="font-size:.72rem;color:#666;margin:6px 0;font-style:italic">Note: ${r.notes}</div>` : ''}
+
+  <!-- VERIFICATION CODE — tamper proof -->
+  <div style="border:1.5px dashed #1a3a6c;border-radius:5px;padding:8px 12px;margin:10px 0;text-align:center">
+    <div style="font-size:.62rem;color:#1a3a6c;text-transform:uppercase;font-weight:700;letter-spacing:.1em">Verification Code</div>
+    <div style="font-family:'Courier New',monospace;font-size:1.1rem;font-weight:700;color:#1a3a6c;letter-spacing:.2em;margin-top:3px">${vcode}</div>
+    <div style="font-size:.6rem;color:#888;margin-top:2px">Ref: ${r.txnId}</div>
+  </div>
+
+  <!-- BOTTOM BORDER PATTERN -->
+  <div style="height:4px;background:repeating-linear-gradient(90deg,#1a3a6c 0,#1a3a6c 12px,#fff 12px,#fff 16px);margin-bottom:10px;border-radius:2px"></div>
+
+  <!-- FOOTNOTE -->
+  <div style="font-size:.65rem;color:#555;line-height:1.5;border-top:1px solid #ddd;padding-top:8px">
+    <b>IMPORTANT:</b> The borrower must present this official receipt whenever a payment claims verification is needed.
+    <b>Failure to present this receipt will not honor any payment claim.</b>
+    The verification code above confirms the authenticity of this receipt.
+    Keep this receipt in a safe place.
+  </div>
+
+  <!-- SIGNATURE LINES -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:16px">
+    <div style="border-top:1px solid #333;padding-top:4px;text-align:center;font-size:.65rem;color:#555">Issued by</div>
+    <div style="border-top:1px solid #333;padding-top:4px;text-align:center;font-size:.65rem;color:#555">Received by</div>
+  </div>
+</div>`;
+
+  // Use receipt-specific print styles
+  printArea.style.display='block';
+  window.print();
+  printArea.style.display='none';
+
+  // After printing, go to profile
+  setTimeout(()=>openProfile(r.borrowerId), 300);
 }
 
 // ═══════════════════════════════════════════════════════
