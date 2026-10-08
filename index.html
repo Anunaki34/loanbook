@@ -1209,6 +1209,21 @@ function openProfile(borrowerId){
       const breakdown=isLoan
         ? `Principal: ${fmt(Number(t.Alloc_Principal))}`
         : `Int: ${fmt(Number(t.Alloc_Interest))} · Pen: ${fmt(Number(t.Alloc_Penalty))} · Prin: ${fmt(Number(t.Alloc_Principal))}`;
+      // Build receipt data from this transaction for reprint
+      const receiptDataStr = !isLoan ? encodeURIComponent(JSON.stringify({
+        txnId:        t.Txn_ID,
+        borrowerId:   t.Borrower_ID,
+        borrowerName: (DB.borrowers.find(x=>x.Borrower_ID===t.Borrower_ID)||{}).Full_Name||'',
+        date:         dateStr,
+        time:         String(t.Timestamp||'').slice(11,16)||'',
+        interest:     Number(t.Alloc_Interest ||0),
+        penalty:      Number(t.Alloc_Penalty  ||0),
+        principal:    Number(t.Alloc_Principal||0),
+        total:        Number(t.Total_Amount   ||0),
+        notes:        t.Notes||'',
+        dueDay:       (DB.borrowers.find(x=>x.Borrower_ID===t.Borrower_ID)||{}).Ref_Due_Date||'',
+      })) : '';
+
       return `
         <div class="txn-item" id="txn-${t.Txn_ID}">
           <div class="txn-icon ${isLoan?'loan':'payment'}">${isLoan?'↓':'↑'}</div>
@@ -1220,7 +1235,10 @@ function openProfile(borrowerId){
           </div>
           <div class="txn-right">
             <div class="txn-amount ${isLoan?'loan':'payment'}">${isLoan?'+':'-'}${fmt(Number(t.Total_Amount))}</div>
-            <button class="txn-del-btn" onclick="confirmDeleteTxn('${t.Txn_ID}','${t.Txn_Type}',${Number(t.Total_Amount)})">🗑 Delete</button>
+            <div style="display:flex;gap:4px;margin-top:4px">
+              ${!isLoan?`<button class="txn-del-btn" style="color:var(--purple);border-color:rgba(167,139,250,.3)" onclick="printReceipt(JSON.parse(decodeURIComponent('${receiptDataStr}')))">🖨️</button>`:''}
+              <button class="txn-del-btn" onclick="confirmDeleteTxn('${t.Txn_ID}','${t.Txn_Type}',${Number(t.Total_Amount)})">🗑</button>
+            </div>
           </div>
         </div>`;
     }).join('');
@@ -1334,6 +1352,7 @@ async function submitPayment(){
 
     // SUCCESS — store receipt data for optional reprint
     const receiptData = {
+      _fromForm:  true,
       txnId:      result.txn_id || ('TXN-'+Date.now()),
       borrowerId: currentBorrowerId,
       borrowerName: (DB.borrowers.find(x=>x.Borrower_ID===currentBorrowerId)||{}).Full_Name||'',
@@ -1644,8 +1663,11 @@ async function printReceipt(r){
   window.print();
   printArea.style.display='none';
 
-  // After printing, go to profile
-  setTimeout(()=>openProfile(r.borrowerId), 300);
+  // Only auto-navigate back to profile if printing from payment form (not history)
+  // r._fromForm flag set by submitPayment flow
+  if(r._fromForm){
+    setTimeout(()=>openProfile(r.borrowerId), 300);
+  }
 }
 
 // ═══════════════════════════════════════════════════════
