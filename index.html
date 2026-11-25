@@ -475,6 +475,14 @@ button{cursor:pointer;border:none;background:none;color:inherit}
     <!-- Transaction history -->
     <div class="section-label">Transaction History</div>
     <div class="txn-list-wrap" id="txn-list"></div>
+
+    <!-- Danger zone -->
+    <div style="margin-top:28px;padding-top:16px;border-top:1px solid var(--border)">
+      <button class="btn btn-ghost" style="width:100%;border-color:rgba(255,77,109,.4);color:var(--red)" onclick="confirmDeleteBorrower()">
+        🗑 Delete This Borrower
+      </button>
+      <div style="font-size:.65rem;color:var(--text3);text-align:center;margin-top:6px">Only available once the account is fully cleared</div>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════
@@ -1273,6 +1281,73 @@ async function executeDeleteTxn(txnId){
     openProfile(currentBorrowerId);
   }catch(err){
     showToast('Delete failed: '+err.message,'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  DELETE BORROWER (permanent)
+// ═══════════════════════════════════════════════════════
+function confirmDeleteBorrower(){
+  const b = DB.borrowers.find(x=>x.Borrower_ID===currentBorrowerId);
+  if(!b){ showToast('Borrower not found','error'); return; }
+
+  const outstanding = _round(
+    Number(b.principal_balance||0)+Number(b.total_interest_due||0)+Number(b.total_penalty_due||0)
+  );
+
+  // Blocked: account still has a balance
+  if(outstanding > 0.009){
+    openModal(`
+      <div class="modal-title">⛔ Cannot Delete Yet</div>
+      <p style="font-size:.88rem;color:var(--text2);margin-bottom:16px;line-height:1.7">
+        <strong>${b.Full_Name}</strong> still has an outstanding balance of
+        <strong style="color:var(--red)">${fmt(outstanding)}</strong>.<br><br>
+        A borrower can only be deleted after principal, interest and penalties are all fully paid.
+      </p>
+      <button class="btn btn-ghost" onclick="closeModal()">OK</button>
+    `);
+    return;
+  }
+
+  const nTxn  = (DB.transactions||[]).filter(t=>t.Borrower_ID===b.Borrower_ID).length;
+  const nDues = (DB.dues_by_borrower[b.Borrower_ID]||[])
+    .filter(d=>String(d.rowType||d.Row_Type||'Active').trim()!=='Projected').length;
+
+  openModal(`
+    <div class="modal-title">🗑 Delete ${b.Full_Name}?</div>
+    <p style="font-size:.88rem;color:var(--text2);margin-bottom:12px;line-height:1.7">
+      Are you sure you want to permanently delete this borrower and <strong>all</strong> of their data from your database?
+    </p>
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;font-size:.8rem;line-height:1.8">
+      <div>• Borrower record</div>
+      <div>• <strong>${nTxn}</strong> transaction${nTxn===1?'':'s'} (loans and payments)</div>
+      <div>• <strong>${nDues}</strong> monthly due record${nDues===1?'':'s'}</div>
+    </div>
+    <p style="font-size:.82rem;margin-bottom:16px;color:var(--yellow);line-height:1.6">
+      This removes the rows from your Google Sheet and <strong>cannot be undone</strong>.
+      Print a final statement first if you need a copy.
+    </p>
+    <button class="btn btn-danger" onclick="executeDeleteBorrower('${b.Borrower_ID}')">Yes, Delete Permanently</button>
+    <button class="btn btn-ghost" onclick="closeModal()" style="margin-top:10px">Cancel</button>
+  `);
+}
+
+async function executeDeleteBorrower(borrowerId){
+  closeModal();
+  // Never queue a delete for later — it must run against live data
+  if(!isOnline()){
+    showToast('You must be online to delete a borrower','error');
+    return;
+  }
+  try{
+    const result = await apiPost({action:'deleteBorrower', borrower_id:borrowerId});
+    if(result.status==='queued') throw new Error('Not connected — try again online');
+    showToast(result.message||'Borrower deleted','success');
+    currentBorrowerId = null;
+    navigate('dashboard');
+    await syncData();
+  }catch(err){
+    showToast('Delete failed: '+err.message,'error',4500);
   }
 }
 
